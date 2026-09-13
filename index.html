@@ -2053,18 +2053,33 @@ function butceDuzenleFormu(donemSecili){
 
 const AY_ADLARI = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 
-/* "Eylül 2026", "2026-09", "09.2026" gibi yazımları döneme çevirir */
+/* "Eylül 2026", "Eyl 2026", "2026-09", "09.2026", bozuk kodlamalı
+   "Eylul 2026" gibi yazımların hepsini döneme çevirir */
+function harfSadeles(t){
+  return String(t||'').toLocaleLowerCase('tr')
+    .replace(/[ıi̇í]/g,'i').replace(/ü/g,'u').replace(/ö/g,'o')
+    .replace(/ş/g,'s').replace(/ç/g,'c').replace(/ğ/g,'g')
+    .replace(/[^a-z0-9]/g,'');
+}
 function donemCoz(metin){
   const t = String(metin||'').trim();
+  if(!t) return '';
   let m = t.match(/^(\d{4})[-/.](\d{1,2})$/);
   if(m) return m[1] + '-' + String(m[2]).padStart(2,'0');
   m = t.match(/^(\d{1,2})[-/.](\d{4})$/);
   if(m) return m[2] + '-' + String(m[1]).padStart(2,'0');
-  m = t.match(/^(\p{L}+)\s+(\d{4})$/u);
-  if(m){
-    const ix = AY_ADLARI.findIndex(a => a.toLocaleLowerCase('tr') === m[1].toLocaleLowerCase('tr'));
-    if(ix > -1) return m[2] + '-' + String(ix+1).padStart(2,'0');
-  }
+  m = t.match(/^\d{1,2}[-/.](\d{1,2})[-/.](\d{4})$/);          // 01.09.2026
+  if(m) return m[2] + '-' + String(m[1]).padStart(2,'0');
+  const yil = (t.match(/(20\d{2})/) || [])[1];
+  if(!yil) return '';
+  const sade = harfSadeles(t.replace(yil, ''));
+  if(!sade) return '';
+  const kisa = ['oca','sub','mar','nis','may','haz','tem','agu','eyl','eki','kas','ara'];
+  const ix = kisa.findIndex(k => sade.startsWith(k) || sade.indexOf(k) === 0);
+  if(ix > -1) return yil + '-' + String(ix+1).padStart(2,'0');
+  const ing = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const ix2 = ing.findIndex(k => sade.startsWith(k));
+  if(ix2 > -1) return yil + '-' + String(ix2+1).padStart(2,'0');
   return '';
 }
 function csvHucre(v){
@@ -2110,45 +2125,67 @@ function butceDisaAktar(){
 /* Aynı biçimdeki dosyayı geri okur ve limitleri günceller */
 function butceIceAktar(){
   const g = document.createElement('input');
-  g.type = 'file'; g.accept = '.csv,.txt,text/csv';
+  g.type = 'file';
+  g.accept = '.csv,.txt,text/csv,application/vnd.ms-excel';
   g.onchange = () => {
     const f = g.files[0]; if(!f) return;
     const r = new FileReader();
     r.onload = () => {
       try{
-        const satirlar = csvCoz(String(r.result).replace(/^\ufeff/, ''));
-        if(satirlar.length < 2) return bildir('Dosyada satır bulunamadı.');
-        const bas = satirlar[0];
-        const aylar = bas.slice(1).map(donemCoz);
-        if(!aylar.some(Boolean)) return bildir('Başlık satırında ay bulunamadı. Dışa aktardığın dosyanın biçimini koru.');
-        let yazilan = 0, bilinmeyen = [];
-        satirlar.slice(1).forEach(satir => {
-          const ad = String(satir[0]||'').trim();
-          if(!ad || ad.toLocaleLowerCase('tr') === 'toplam') return;
-          let k = anaKategoriler('gider').find(x =>
-            x.ad.toLocaleLowerCase('tr') === ad.toLocaleLowerCase('tr'));
-          if(!k){
-            k = {id:uid(), parentId:'', ad, yon:'gider', arsiv:false};
-            (D.kategoriler = D.kategoriler||[]).push(k);
-            bilinmeyen.push(ad);
-          }
-          aylar.forEach((donem, i) => {
-            if(!donem) return;
-            const tutar = sayiCoz(satir[i+1]);
-            D.butce = (D.butce||[]).filter(b => !(b.kategoriId === k.id && b.donem === donem));
-            if(tutar > 0){ D.butce.push({id:uid(), kategoriId:k.id, donem, limitTutari:tutar}); yazilan++; }
-          });
-        });
-        if(bilinmeyen.length) isaretle('kategoriler');
-        isaretle('butce');
-        ciz();
-        bildir(yazilan + ' limit güncellendi' +
-          (bilinmeyen.length ? ' · yeni kategori: ' + bilinmeyen.join(', ') : '') + '.');
+        const bayt = new Uint8Array(r.result);
+        // .xlsx ve .xls dosyaları metin değildir
+        if(bayt[0] === 0x50 && bayt[1] === 0x4B)
+          return bildir('Bu bir Excel çalışma kitabı (.xlsx). Excel’de Farklı Kaydet > CSV UTF-8 seçip öyle kaydet.');
+        if(bayt[0] === 0xD0 && bayt[1] === 0xCF)
+          return bildir('Bu eski bir Excel dosyası (.xls). Farklı Kaydet > CSV UTF-8 seçip öyle kaydet.');
+        let metin = new TextDecoder('utf-8').decode(bayt);
+        if(metin.indexOf('\uFFFD') > -1){            // Türkçe karakterler bozuksa
+          try{ metin = new TextDecoder('windows-1254').decode(bayt); }catch(e){}
+        }
+        butceMetindenAktar(metin.replace(/^\ufeff/, ''));
       }catch(e){ bildir('Dosya okunamadı: ' + e.message); }
     };
-    r.readAsText(f, 'utf-8');
+    r.readAsArrayBuffer(f);
   };
   g.click();
+}
+
+function butceMetindenAktar(metin){
+  const satirlar = csvCoz(metin);
+  if(satirlar.length < 2) return bildir('Dosyada satır bulunamadı.');
+  const bas = satirlar[0];
+  let aylar = bas.slice(1).map(donemCoz);
+  if(!aylar.some(Boolean)){
+    const sutun = bas.length - 1;
+    const onay = confirm('Başlık satırındaki aylar okunamadı.\n\n' +
+      'Sütunlar ' + ayAdi(fltr.ay) + ' ayından başlayarak sırayla eşleştirilsin mi?');
+    if(!onay) return;
+    aylar = Array.from({length: sutun}, (_, i) => ayEkle(fltr.ay, i));
+  }
+  let yazilan = 0, bilinmeyen = [];
+  satirlar.slice(1).forEach(satir => {
+    const ad = String(satir[0]||'').trim();
+    if(!ad || harfSadeles(ad) === 'toplam' || harfSadeles(ad) === 'kategori') return;
+    let k = anaKategoriler('gider').find(x => harfSadeles(x.ad) === harfSadeles(ad));
+    if(!k){
+      k = {id:uid(), parentId:'', ad, yon:'gider', arsiv:false};
+      (D.kategoriler = D.kategoriler||[]).push(k);
+      bilinmeyen.push(ad);
+    }
+    aylar.forEach((donem, i) => {
+      if(!donem) return;
+      const hucre = satir[i+1];
+      if(hucre === undefined) return;
+      const tutar = sayiCoz(hucre);
+      D.butce = (D.butce||[]).filter(b => !(b.kategoriId === k.id && b.donem === donem));
+      if(tutar > 0){ D.butce.push({id:uid(), kategoriId:k.id, donem, limitTutari:tutar}); yazilan++; }
+    });
+  });
+  if(bilinmeyen.length) isaretle('kategoriler');
+  isaretle('butce');
+  ciz();
+  bildir(yazilan + ' limit güncellendi' +
+    (bilinmeyen.length ? ' · yeni kategori: ' + bilinmeyen.join(', ') : '') + '.');
 }
 
 function butceKopyala(){
