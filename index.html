@@ -1027,13 +1027,15 @@ function butceOzet(donem){
     return {kat:k, limit, devir:dvr, etkin:limit+dvr, harcanan, kalan:limit+dvr-harcanan};
   }).filter(x => x.limit > 0 || x.harcanan > 0 || x.devir !== 0);
   const toplamLimit = kats.reduce((a,x)=>a+x.etkin,0);
+  const toplamSade = kats.reduce((a,x)=>a+x.limit,0);
+  const toplamDevir = kats.reduce((a,x)=>a+x.devir,0);
   const toplamHarcanan = kats.reduce((a,x)=>a+x.harcanan,0);
   const gunSayisi = ayGunSayisi(donem);
   const bu = donemStr(bugun()) === donem;
   const gecen = bu ? bugun().getDate() : gunSayisi;
   const kalanGun = Math.max(1, gunSayisi - gecen + (bu?1:0));
   return {
-    kats, toplamLimit, toplamHarcanan,
+    kats, toplamLimit, toplamSade, toplamDevir, toplamHarcanan,
     kalan: toplamLimit - toplamHarcanan,
     gunluk: Math.max(0, (toplamLimit - toplamHarcanan) / kalanGun),
     kalanGun,
@@ -1354,7 +1356,10 @@ function gorunumButce(){
         <p class="orta sayi">${para(o.kalan)}</p>
         ${izgara(oran, oran > 1 ? 'k' : (oran > 0.85 ? 's' : ''))}
         <table style="margin-top:8px">
-          <tr><td class="etk">Bütçe</td><td class="sag sayi">${para(o.toplamLimit)}</td></tr>
+          <tr><td class="etk">Ayın bütçesi</td><td class="sag sayi">${para(o.toplamSade)}</td></tr>
+          ${o.toplamDevir ? `<tr><td class="etk">Önceki aylardan devir</td>
+            <td class="sag sayi ${o.toplamDevir<0?'eks':''}">${para(o.toplamDevir)}</td></tr>
+            <tr><td class="etk">Kullanılabilir toplam</td><td class="sag sayi">${para(o.toplamLimit)}</td></tr>` : ''}
           <tr><td class="etk">Harcanan</td><td class="sag sayi">${para(o.toplamHarcanan)}</td></tr>
           ${simdi ? `<tr><td class="etk">Günlük harcanabilir</td><td class="sag sayi">${para(o.gunluk)}</td></tr>
             <tr><td class="etk">Ay sonu tahmini</td><td class="sag sayi">${para(o.aySonuTahmin)}</td></tr>` : ''}
@@ -1374,10 +1379,11 @@ function gorunumButce(){
       return `<td class="hucre" data-eylem="limitAc" data-id="${k.id}" data-donem="${a}" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;font-size:13px;gap:8px">
           <b class="sayi" style="font-weight:600">${para(harcanan)}</b>
-          <span class="etk sayi">${etkin ? '/ ' + para(etkin) : '—'}</span>
+          <span class="etk sayi">${limit ? '/ ' + para(limit) : (etkin ? '/ 0' : '—')}</span>
         </div>
         ${etkin ? izgara(oran, sinif) : ''}
-        ${dvr ? `<span class="rozet ${dvr < 0 ? 'k' : ''}" style="margin-top:5px">devir ${para(dvr)}</span>` : ''}
+        ${dvr ? `<div class="etk sayi" style="margin-top:5px;font-size:11.5px">
+          devir ${para(dvr)} · toplam ${para(etkin)}</div>` : ''}
       </td>`;
     }).join('');
     return `<tr><td style="font-weight:500">${kacir(k.ad)}</td>${hucreler}</tr>`;
@@ -1386,7 +1392,9 @@ function gorunumButce(){
   const toplamSatir = `<tr style="border-top:2px solid var(--cizgi)">
     <td style="font-weight:600">Toplam</td>
     ${ozetler.map(({o}) => `<td class="sag sayi" style="font-weight:600">
-      ${para(o.toplamHarcanan)} <span class="etk">/ ${para(o.toplamLimit)}</span></td>`).join('')}</tr>`;
+      ${para(o.toplamHarcanan)} <span class="etk">/ ${para(o.toplamSade)}</span>
+      ${o.toplamDevir ? `<div class="etk" style="font-weight:400;font-size:11.5px">
+        devirle ${para(o.toplamLimit)}</div>` : ''}</td>`).join('')}</tr>`;
 
   return `
   <div class="ust"><h1>Bütçe</h1>${aySecici(fltr.ay)}
