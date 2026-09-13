@@ -84,6 +84,7 @@ td{padding:9px 8px;border-bottom:1px solid var(--cizgi2);vertical-align:middle}
 tr:last-child td{border-bottom:0}
 td.sag,th.sag{text-align:right}
 .sayi{font-variant-numeric:tabular-nums}
+.hucre{vertical-align:top;min-width:150px}
 .iz{height:8px;border-radius:5px;background:var(--cizgi2);overflow:hidden}
 .iz i{display:block;height:8px;border-radius:5px;background:var(--marka)}
 .iz i.s{background:var(--sari)} .iz i.k{background:var(--kirmizi)}
@@ -1024,7 +1025,7 @@ function butceOzet(donem){
     const dvr = devir(k.id, donem);
     const harcanan = kategoriHarcama(k.id, donem);
     return {kat:k, limit, devir:dvr, etkin:limit+dvr, harcanan, kalan:limit+dvr-harcanan};
-  }).filter(x => x.limit > 0 || x.harcanan > 0);
+  }).filter(x => x.limit > 0 || x.harcanan > 0 || x.devir !== 0);
   const toplamLimit = kats.reduce((a,x)=>a+x.etkin,0);
   const toplamHarcanan = kats.reduce((a,x)=>a+x.harcanan,0);
   const gunSayisi = ayGunSayisi(donem);
@@ -1336,32 +1337,73 @@ function gorunumIslemler(){
 }
 
 function gorunumButce(){
-  const donem = fltr.ay;
-  const b = butceOzet(donem);
+  const aylar = [fltr.ay, ayEkle(fltr.ay, 1), ayEkle(fltr.ay, 2)];
+  const ozetler = aylar.map(a => ({donem:a, o:butceOzet(a)}));
+  const kats = anaKategoriler('gider').filter(k =>
+    aylar.some(a => butceSatir(k.id, a) > 0 || kategoriHarcama(k.id, a) > 0));
+  const buAy = donemStr(bugun());
+
+  const kartlar = ozetler.map(({donem, o}) => {
+    const oran = o.toplamLimit ? o.toplamHarcanan / o.toplamLimit : 0;
+    const simdi = donem === buAy;
+    return `<div class="kart">
+      <div class="bas"><span>${ayAdi(donem)}</span>
+        ${simdi ? '<span class="rozet">bu ay</span>' : ''}</div>
+      ${o.toplamLimit || o.toplamHarcanan ? `
+        <p class="etk">Kalan</p>
+        <p class="orta sayi">${para(o.kalan)}</p>
+        ${izgara(oran, oran > 1 ? 'k' : (oran > 0.85 ? 's' : ''))}
+        <table style="margin-top:8px">
+          <tr><td class="etk">Bütçe</td><td class="sag sayi">${para(o.toplamLimit)}</td></tr>
+          <tr><td class="etk">Harcanan</td><td class="sag sayi">${para(o.toplamHarcanan)}</td></tr>
+          ${simdi ? `<tr><td class="etk">Günlük harcanabilir</td><td class="sag sayi">${para(o.gunluk)}</td></tr>
+            <tr><td class="etk">Ay sonu tahmini</td><td class="sag sayi">${para(o.aySonuTahmin)}</td></tr>` : ''}
+        </table>` : `<div class="bos">Limit tanımlı değil</div>
+        <button class="btn ikincil ince" data-eylem="butceDuzenle" data-donem="${donem}">Limit belirle</button>`}
+    </div>`;
+  }).join('');
+
+  const satirlar = kats.map(k => {
+    const hucreler = aylar.map(a => {
+      const limit = butceSatir(k.id, a);
+      const dvr = devir(k.id, a);
+      const etkin = limit + dvr;
+      const harcanan = kategoriHarcama(k.id, a);
+      const oran = etkin ? harcanan / etkin : (harcanan ? 1 : 0);
+      const sinif = oran > 1 ? 'k' : (oran > 0.85 ? 's' : '');
+      return `<td class="hucre" data-eylem="limitAc" data-id="${k.id}" data-donem="${a}" style="cursor:pointer">
+        <div style="display:flex;justify-content:space-between;font-size:13px;gap:8px">
+          <b class="sayi" style="font-weight:600">${para(harcanan)}</b>
+          <span class="etk sayi">${etkin ? '/ ' + para(etkin) : '—'}</span>
+        </div>
+        ${etkin ? izgara(oran, sinif) : ''}
+        ${dvr ? `<span class="rozet ${dvr < 0 ? 'k' : ''}" style="margin-top:5px">devir ${para(dvr)}</span>` : ''}
+      </td>`;
+    }).join('');
+    return `<tr><td style="font-weight:500">${kacir(k.ad)}</td>${hucreler}</tr>`;
+  }).join('');
+
+  const toplamSatir = `<tr style="border-top:2px solid var(--cizgi)">
+    <td style="font-weight:600">Toplam</td>
+    ${ozetler.map(({o}) => `<td class="sag sayi" style="font-weight:600">
+      ${para(o.toplamHarcanan)} <span class="etk">/ ${para(o.toplamLimit)}</span></td>`).join('')}</tr>`;
+
   return `
-  <div class="ust"><h1>Bütçe</h1>${aySecici(donem)}
+  <div class="ust"><h1>Bütçe</h1>${aySecici(fltr.ay)}
     <button class="btn ikincil" data-eylem="butceKopyala">Geçen aydan kopyala</button>
     <button class="btn" data-eylem="butceDuzenle"><svg><use href="#s-plus"/></svg>Limit belirle</button></div>
-  <div class="izgara i3" style="margin-bottom:16px">
-    <div class="kart"><p class="etk">Kalan</p><p class="orta sayi">${para(b.kalan)}</p>
-      ${izgara(b.toplamHarcanan/(b.toplamLimit||1), b.toplamHarcanan>b.toplamLimit?'k':'')}</div>
-    <div class="kart"><p class="etk">Günlük harcanabilir</p><p class="orta sayi">${para(b.gunluk)}</p>
-      <p class="etk">${b.kalanGun} gün kaldı</p></div>
-    <div class="kart"><p class="etk">Ay sonu tahmini</p><p class="orta sayi">${para(b.aySonuTahmin)}</p>
-      <p class="etk">Bütçe ${para(b.toplamLimit)}</p></div>
-  </div>
+  <div class="izgara i3" style="margin-bottom:16px">${kartlar}</div>
   <div class="kart">
-    <div class="bas"><span>Kategoriler</span></div>
-    ${b.kats.length ? b.kats.map(x => {
-      const oran = x.etkin ? x.harcanan/x.etkin : 1;
-      const sinif = oran > 1 ? 'k' : (oran > 0.85 ? 's' : '');
-      return `<div style="padding:11px 0;border-bottom:1px solid var(--cizgi2)">
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-          <b style="font-weight:500;cursor:pointer" data-eylem="limitAc" data-id="${x.kat.id}">${kacir(x.kat.ad)}</b>
-          <span class="etk sayi">${para(x.harcanan)} / ${para(x.etkin)}${
-            x.devir ? ` <span class="rozet ${x.devir<0?'k':''}" style="margin-left:6px">devir ${para(x.devir)}</span>`:''}</span>
-        </div>${izgara(oran, sinif)}</div>`;
-    }).join('') : bosKutu('Bu ay için limit tanımlı değil.')}
+    <div class="bas"><span>Kategoriler</span>
+      <span class="etk">Bir hücreye tıklayarak o ayın limitini değiştirebilirsin</span></div>
+    <div style="overflow-x:auto">
+      <table style="min-width:640px">
+        <tr><th style="width:22%">Kategori</th>
+          ${aylar.map(a => `<th>${ayAdi(a)}</th>`).join('')}</tr>
+        ${satirlar || `<tr><td colspan="4">${bosKutu('Bu dönemde limit ya da harcama yok.')}</td></tr>`}
+        ${kats.length ? toplamSatir : ''}
+      </table>
+    </div>
   </div>`;
 }
 
@@ -1931,37 +1973,52 @@ function kartOde(hesapId){
   });
 }
 
-function limitFormu(katId){
-  const donem = fltr.ay;
+function limitFormu(katId, donemSecili){
+  const donem = donemSecili || fltr.ay;
   const k = kategori(katId);
-  const mevcut = (D.butce||[]).find(b=>b.kategoriId===katId && b.donem===donem);
+  const mevcut = (D.butce||[]).find(b => b.kategoriId === katId && b.donem === donem);
   formAc({
-    baslik: (k?k.ad:'') + ' · ' + ayAdi(donem),
-    alanlar:[{ad:'limitTutari', etiket:`Aylık limit (devir ${para(devir(katId,donem))})`, tip:'sayi',
-      on: mevcut?mevcut.limitTutari:''}],
+    baslik: (k ? k.ad : '') + ' · ' + ayAdi(donem),
+    alanlar: [
+      {ad:'limitTutari', etiket:`Aylık limit (devir ${para(devir(katId, donem))})`, tip:'sayi',
+        on: mevcut ? mevcut.limitTutari : ''},
+      {ad:'ileriAylar', etiket:'Aynı tutarı sonraki 11 aya da uygula', tip:'onay'}
+    ],
     kaydet: v => {
-      D.butce = (D.butce||[]).filter(b=>!(b.kategoriId===katId&&b.donem===donem));
-      if(say(v.limitTutari) > 0)
-        D.butce.push({id:uid(), kategoriId:katId, donem, limitTutari: say(v.limitTutari)});
+      const tutar = say(v.limitTutari);
+      const kac = v.ileriAylar ? 12 : 1;
+      for(let i = 0; i < kac; i++){
+        const d = ayEkle(donem, i);
+        D.butce = (D.butce||[]).filter(b => !(b.kategoriId === katId && b.donem === d));
+        if(tutar > 0) D.butce.push({id:uid(), kategoriId:katId, donem:d, limitTutari:tutar});
+      }
       isaretle('butce');
     }
   });
 }
-function butceDuzenleFormu(){
-  const donem = fltr.ay;
+function butceDuzenleFormu(donemSecili){
+  const donem = donemSecili || fltr.ay;
   const kats = anaKategoriler('gider');
   if(!kats.length) return bildir('Önce kategori ekle.');
-  const alanlar = kats.map(k => ({ad:'k_'+k.id, etiket:k.ad, tip:'sayi'}));
+  const alanlar = kats.map(k => ({ad:'k_' + k.id, etiket:k.ad, tip:'sayi'}));
+  alanlar.push({ad:'ileriAylar', etiket:'Aynı limitleri sonraki 11 aya da uygula', tip:'onay'});
   const deger = {};
-  kats.forEach(k => { const b=(D.butce||[]).find(x=>x.kategoriId===k.id&&x.donem===donem); if(b) deger['k_'+k.id]=b.limitTutari; });
+  kats.forEach(k => {
+    const b = (D.butce||[]).find(x => x.kategoriId === k.id && x.donem === donem);
+    if(b) deger['k_' + k.id] = b.limitTutari;
+  });
   formAc({
     baslik: ayAdi(donem) + ' limitleri', genis:true, alanlar, deger,
     kaydet: v => {
-      D.butce = (D.butce||[]).filter(b => b.donem !== donem);
-      kats.forEach(k => {
-        const t = say(v['k_'+k.id]);
-        if(t > 0) D.butce.push({id:uid(), kategoriId:k.id, donem, limitTutari:t});
-      });
+      const kac = v.ileriAylar ? 12 : 1;
+      for(let i = 0; i < kac; i++){
+        const d = ayEkle(donem, i);
+        D.butce = (D.butce||[]).filter(b => b.donem !== d);
+        kats.forEach(k => {
+          const t = say(v['k_' + k.id]);
+          if(t > 0) D.butce.push({id:uid(), kategoriId:k.id, donem:d, limitTutari:t});
+        });
+      }
       isaretle('butce');
     }
   });
@@ -2268,9 +2325,9 @@ document.addEventListener('click', ev => {
     ayDegis: () => { fltr.ay = ayEkle(fltr.ay, say(el.dataset.yon)); ciz(); },
     fltrTur: () => { fltr.tur = el.dataset.v; ciz(); },
     fltrEtiket: () => { fltr.etiket = el.dataset.v; ciz(); },
-    butceDuzenle: butceDuzenleFormu,
+    butceDuzenle: () => butceDuzenleFormu(el.dataset.donem),
     butceKopyala: butceKopyala,
-    limitAc: () => limitFormu(id),
+    limitAc: () => limitFormu(id, el.dataset.donem),
     borcEkle: () => borcFormu(),
     borcDuzenle: () => borcFormu((D.borclar||[]).find(x=>x.id===id)),
     planGir: () => planFormu(id),
