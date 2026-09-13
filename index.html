@@ -990,6 +990,34 @@ function kartDonemi(hesapId, tarih){
   return t.getDate() > Math.min(kesim, ayGunSayisi(d)) ? ayEkle(d, 1) : d;
 }
 
+/* Bir ekstre dönemine düşen hareketler */
+function ekstreHareketleri(hesapId, donem){
+  const satirlar = [];
+  (D.islemler||[]).forEach(i => {
+    if(i.hesapId === hesapId && i.tur === 'gider'){
+      const n = say(i.taksitSayisi);
+      if(n > 1){
+        const ilk = kartDonemi(hesapId, i.tarih);
+        const fark = (donemTarih(donem).getFullYear() - donemTarih(ilk).getFullYear()) * 12
+          + (donemTarih(donem).getMonth() - donemTarih(ilk).getMonth());
+        if(fark >= 0 && fark < n)
+          satirlar.push({tarih:i.tarih, ad:i.aciklama || kategoriAd(i.kategoriId),
+            alt:`${kategoriAd(i.kategoriId)} · ${fark+1}/${n} taksit`,
+            tutar: say(i.tryTutar)/n, tur:'harcama', id:i.id});
+      } else if(kartDonemi(hesapId, i.tarih) === donem){
+        satirlar.push({tarih:i.tarih, ad:i.aciklama || kategoriAd(i.kategoriId),
+          alt:kategoriAd(i.kategoriId), tutar: say(i.tryTutar), tur:'harcama', id:i.id});
+      }
+    }
+    if(i.hedefHesapId === hesapId && i.tur === 'transfer' && donemStr(i.tarih) === donem){
+      satirlar.push({tarih:i.tarih, ad:i.aciklama || 'Kart ödemesi',
+        alt: hesap(i.hesapId) ? hesap(i.hesapId).ad : '', tutar: -say(i.tryTutar),
+        tur:'odeme', id:i.id});
+    }
+  });
+  return satirlar.sort((a,b) => a.tarih < b.tarih ? 1 : -1);
+}
+
 /* Kart ekstresi (verilen dönem için) */
 function ekstre(hesapId, donem){
   const h = hesap(hesapId) || {};
@@ -1556,7 +1584,8 @@ function gorunumKartlar(){
           <p class="orta">${trTarih(e.sonOdemeTarihi)}</p>
           <span class="rozet ${gunFark(e.sonOdemeTarihi,bugun())<=3?'s':''}">${e.kalan>0?para(e.kalan)+' ödenecek':'Ödendi'}</span></div>
       </div>
-      <table style="margin-top:12px">
+      <div class="izgara i2" style="margin-top:14px;align-items:start">
+      <table>
         <tr><td class="etk">Hesaplanan dönem borcu</td><td class="sag sayi">${para(e.hesaplanan)}</td></tr>
         ${e.bankaTutari?`<tr><td class="etk">Banka ekstre tutarı</td><td class="sag sayi">${para(e.bankaTutari)}</td></tr>`:''}
         <tr><td class="etk">Asgari ödeme</td><td class="sag sayi">${para(e.asgari)}</td></tr>
@@ -1564,6 +1593,22 @@ function gorunumKartlar(){
         <tr><td class="etk">Tahmini faiz</td><td class="sag sayi">${para(e.tahminiFaiz)}</td></tr>
         <tr><td class="etk">Bu dönem ödenen</td><td class="sag sayi">${para(e.odenen)}</td></tr>
       </table>
+      <div>
+        <div class="bas" style="margin-bottom:8px"><span>${ayAdi(donem)} dönemi hareketleri</span>
+          <span class="etk">${trTarih(new Date(donemTarih(donem).getFullYear(), donemTarih(donem).getMonth()-1,
+            Math.min(say(h.kesimGunu)||1, 28)+1))} – ${trTarih(e.kesimTarihi)}</span></div>
+        <div class="liste">${(() => {
+          const hareketler = ekstreHareketleri(h.id, donem);
+          if(!hareketler.length) return bosKutu('Bu dönemde hareket yok.');
+          return hareketler.map(x => `<div class="oge" ${x.tur==='harcama'
+              ? `data-eylem="islemAc" data-id="${x.id}" style="cursor:pointer"` : ''}>
+            <div class="gun">${new Date(x.tarih).getDate()}<small>${kisaAy(x.tarih)}</small></div>
+            <div class="t"><b>${kacir(x.ad)}</b><small>${kacir(x.alt)}</small></div>
+            <div class="a sayi ${x.tutar < 0 ? 'art' : ''}">${x.tutar < 0 ? '+' : ''}${para(Math.abs(x.tutar))}</div>
+          </div>`).join('');
+        })()}</div>
+      </div>
+      </div>
     </div>`;
   }).join('') : `<div class="kart">${bosKutu('Kayıtlı kredi kartı yok.')}</div>`}`;
 }
