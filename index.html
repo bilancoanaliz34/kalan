@@ -121,6 +121,7 @@ td.sag,th.sag{text-align:right}
 .gun.gecmis{border-color:var(--kirmizi);background:var(--kirmiziZ)}
 .gun.odendi{background:var(--cizgi2);border-color:var(--cizgi2);color:var(--mut)}
 .art{color:var(--yesil)} .eks{color:var(--kirmiziY)}
+.asgari{font-size:11.5px;font-weight:500;color:var(--kirmizi);text-align:right;margin-top:2px}
 
 /* ---------- kaplama ---------- */
 .kapla{position:fixed;inset:0;background:rgba(10,18,16,.45);display:flex;align-items:center;
@@ -1130,7 +1131,7 @@ function yaklasanOdemeler(gun=30){
     const f = gunFark(e.sonOdemeTarihi, b);
     if(f > gun || f < -60) return;
     liste.push({tur:'Kart', ad:h.ad, alt:'Son ödeme', tarih: ymd(e.sonOdemeTarihi),
-      tutar: e.kalan, gun: f, kaynak:'kart', id: h.id});
+      tutar: e.kalan, asgari: Math.max(0, e.asgari - e.odenen), gun: f, kaynak:'kart', id: h.id});
   });
   (D.tekrarlayanlar||[]).filter(r => bool(r.aktif)).forEach(r => {
     const f = gunFark(r.sonrakiTarih, b);
@@ -1333,6 +1334,31 @@ function gorunumOzet(){
       ? '<button class="btn" data-eylem="sbGirisAc">Giriş yap</button>' : ''}
     <button class="btn ikincil" data-eylem="yenile"><svg><use href="#s-sync"/></svg>Yenile</button>
     <button class="btn" data-eylem="islemEkle"><svg><use href="#s-plus"/></svg>İşlem ekle</button></div>
+  ${(() => {
+    const hepsi = yaklasanOdemeler(45);
+    const ayBitis = new Date(donemTarih(donemStr(bugun())).getFullYear(),
+      donemTarih(donemStr(bugun())).getMonth() + 1, 0);
+    const topla = f => hepsi.filter(f).reduce((a, o) => a + o.tutar, 0);
+    const hafta = topla(o => o.gun >= 0 && o.gun <= 7);
+    const ayKalan = topla(o => o.gun >= 0 && new Date(o.tarih) <= ayBitis);
+    const otuzGun = topla(o => o.gun >= 0 && o.gun <= 30);
+    const gecikmis = topla(o => o.gun < 0);
+    const asgari = hepsi.filter(o => o.gun >= 0 && o.gun <= 30 && o.asgari > 0)
+      .reduce((a, o) => a + o.asgari, 0);
+    return `<div class="izgara i3" style="margin-bottom:16px">
+      <div class="kart"><p class="etk">Bu hafta ödenecek</p>
+        <p class="orta sayi">${para(hafta)}</p><p class="etk">önümüzdeki 7 gün</p></div>
+      <div class="kart"><p class="etk">Ay sonuna kadar</p>
+        <p class="orta sayi">${para(ayKalan)}</p><p class="etk">${ayAdi(donemStr(bugun()))} kalanı</p></div>
+      <div class="kart"><p class="etk">30 günde ödenecek</p>
+        <p class="orta sayi">${para(otuzGun)}</p>
+        <p class="etk">${asgari > 0
+          ? 'kart asgarisi ' + para(asgari) : 'kredi, kart ve sözleşmeler'}</p></div>
+      ${gecikmis > 0 ? `<div class="kart" style="border-color:var(--kirmizi)">
+        <p class="etk">Gecikmiş</p><p class="orta sayi eks">${para(gecikmis)}</p>
+        <p class="etk">vadesi geçmiş ödemeler</p></div>` : ''}
+    </div>`;
+  })()}
   <div class="izgara i2">
     <div class="kart">
       <p class="etk">Net varlık</p>
@@ -1376,7 +1402,8 @@ function gorunumOzet(){
         return `<div class="oge">
           <div class="gun ${sinif}">${new Date(o.tarih).getDate()}<small>${kisaAy(o.tarih)}</small></div>
           <div class="t"><b>${kacir(o.ad)}</b><small>${kacir(o.tur)} · ${kacir(o.alt)} · ${o.gun<0?Math.abs(o.gun)+' gün gecikmiş':(o.gun===0?'bugün':o.gun+' gün sonra')}</small></div>
-          <div class="a sayi">${para(o.tutar)}</div></div>`;
+          <div class="a sayi">${para(o.tutar)}${o.asgari > 0
+            ? `<div class="asgari">asgari ${para(o.asgari)}</div>` : ''}</div></div>`;
       }).join('') : bosKutu('Önümüzdeki 14 günde ödeme yok.')}</div>
     </div>
     <div class="kart">
