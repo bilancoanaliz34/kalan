@@ -145,6 +145,8 @@ td.sag,th.sag{text-align:right}
     <a class="sek" data-git="varlik" href="#varlik"><svg><use href="#s-home2"/></svg>Varlıklar</a>
     <a class="sek" data-git="ayarlar" href="#ayarlar"><svg><use href="#s-cog"/></svg>Ayarlar</a>
     <div class="bosluk"></div>
+    <button class="btn" id="girisDugmesi" data-eylem="sbGirisAc"
+      style="display:none;margin:0 6px 8px;justify-content:center">Giriş yap</button>
     <div class="durum" id="durum"><i></i><span>Bağlanmadı</span></div>
   </nav>
   <main class="ana" id="ana"></main>
@@ -258,6 +260,10 @@ function oturumOku(){
   try{ OTURUM = JSON.parse(localStorage.getItem('kalan_oturum') || 'null'); }catch(e){ OTURUM = null; }
 }
 async function sbIstek(yol, secenekler = {}, yetkili = true){
+  if(!AYAR.sbUrl || !AYAR.sbKey)
+    throw new Error('Supabase proje adresi ve anahtarı girilmemiş. Ayarlar ekranından ekle.');
+  if(!/^https?:\/\//.test(AYAR.sbUrl))
+    throw new Error('Proje adresi https:// ile başlamalı: ' + AYAR.sbUrl);
   const c = await fetch(AYAR.sbUrl.replace(/\/$/, '') + yol, Object.assign({
     headers: Object.assign(sbBasliklar(yetkili), secenekler.headers || {})
   }, secenekler, {headers: Object.assign(sbBasliklar(yetkili), secenekler.headers || {})}));
@@ -265,7 +271,9 @@ async function sbIstek(yol, secenekler = {}, yetkili = true){
   let j = null;
   try{ j = metin ? JSON.parse(metin) : null; }catch(e){ j = null; }
   if(!c.ok){
-    const mesaj = (j && (j.error_description || j.msg || j.message || j.error)) || ('HTTP ' + c.status);
+    let mesaj = (j && (j.error_description || j.msg || j.message || j.error)) || ('HTTP ' + c.status);
+    if(c.status === 405) mesaj = 'Adres yanlış görünüyor (405). Ayarlar\'daki proje adresi https://xxxx.supabase.co biçiminde olmalı.';
+    if(c.status === 404) mesaj = 'Adres bulunamadı (404). Proje adresini ve kalan_veri tablosunun oluştuğunu kontrol et.';
     const h = new Error(mesaj); h.kod = c.status; throw h;
   }
   return j;
@@ -561,6 +569,8 @@ function dosyayiCoz(){
 
 /* ---------- Sheets bağlantısı ---------- */
 function durumYaz(metin, sinif){
+  const gd = $('#girisDugmesi');
+  if(gd) gd.style.display = (AYAR.mod === 'supabase' && !OTURUM) ? 'flex' : 'none';
   const d = $('#durum'); if(!d) return;
   d.style.cursor = 'pointer';
   d.className = 'durum ' + (sinif||'');
@@ -754,7 +764,7 @@ function isaretle(...tablolar){
   tablolar.forEach(t => kirli.add(t));
   yereleYaz();
   clearTimeout(kaydetZaman);
-  kaydetZaman = setTimeout(kaydet, 1200);
+  kaydetZaman = setTimeout(kaydet, 700);
   durumYaz('Kaydedilecek…');
 }
 async function kaydet(){
@@ -1207,6 +1217,8 @@ function gorunumOzet(){
   const usd = kur('USD'), altin = kur('XAU_GRAM');
   return `
   <div class="ust"><h1>Özet</h1>
+    ${AYAR.mod === 'supabase' && !OTURUM
+      ? '<button class="btn" data-eylem="sbGirisAc">Giriş yap</button>' : ''}
     <button class="btn ikincil" data-eylem="yenile"><svg><use href="#s-sync"/></svg>Yenile</button>
     <button class="btn" data-eylem="islemEkle"><svg><use href="#s-plus"/></svg>İşlem ekle</button></div>
   <div class="izgara i2">
@@ -2266,6 +2278,7 @@ document.addEventListener('click', ev => {
   if(eylemler[e]){ ev.preventDefault(); eylemler[e](); }
 });
 $('#durum').addEventListener('click', () => {
+  if(AYAR.mod === 'supabase'){ OTURUM ? sbYukle() : girisEkrani(); return; }
   if(AYAR.mod === 'dosya' && !dosyaHazir) dosyayiBagla();
   else if(AYAR.mod === 'dosya') kaydet();
   else location.hash = '#ayarlar';
@@ -2279,6 +2292,22 @@ document.addEventListener('keydown', ev => {
     ev.preventDefault(); islemFormu();
   }
 });
+/* Otomatik eşitleme: sekmeye dönünce ve düzenli aralıkla veriyi tazeler.
+   Bekleyen kayıt varken çekmez ki yerel değişiklik ezilmesin. */
+let sonCekme = Date.now();
+async function otomatikCek(zorla){
+  if(AYAR.mod !== 'supabase' || !OTURUM) return;
+  if(kirli.size) return;
+  if(document.hidden) return;
+  if(!zorla && Date.now() - sonCekme < 60000) return;
+  if($$('.kapla').length) return;        // form açıkken bölme
+  sonCekme = Date.now();
+  await sbYukle({sessiz:true});
+}
+setInterval(() => otomatikCek(false), 30000);
+window.addEventListener('focus', () => otomatikCek(false));
+document.addEventListener('visibilitychange', () => { if(!document.hidden) otomatikCek(false); });
+
 window.addEventListener('hashchange', yonlendir);
 window.addEventListener('beforeunload', () => { if(kirli.size) kaydet(); });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', temaUygula);
