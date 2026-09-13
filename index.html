@@ -181,7 +181,7 @@ const TABLOLAR = ['ayarlar','hesaplar','kategoriler','islemler','butce','borclar
   'yatirimlar','varliklar','fiyatlar','anlikGoruntu'];
 
 let D = {};                    // veri
-let AYAR = { url:'', tablo:'', tema:'sistem', mod:'tablo', dosyaAd:'', saltOkunur:true };
+let AYAR = { url:'', tablo:'', sbUrl:'', sbKey:'', tema:'sistem', mod:'tablo', dosyaAd:'', saltOkunur:true };
 let kirli = new Set();         // kaydedilecek sayfalar
 let kaydetZaman = null;
 let aktifSayfa = 'ozet';
@@ -235,6 +235,160 @@ function yereldenOku(){
 }
 function bosVeri(){
   const o = {}; TABLOLAR.forEach(t => o[t] = []); return o;
+}
+
+/* ===================================================================
+   SUPABASE veri katmanı
+   Veriler kullanıcı başına kalan_veri tablosunda, tablo adı + JSON
+   biçiminde tutulur. Erişim satır düzeyi güvenlikle korunur.
+   =================================================================== */
+
+let OTURUM = null;   // {access_token, refresh_token, expires_at, email}
+
+function sbHazir(){ return !!(AYAR.sbUrl && AYAR.sbKey); }
+function sbBasliklar(yetkili){
+  const b = {'apikey': AYAR.sbKey, 'Content-Type': 'application/json'};
+  if(yetkili && OTURUM) b['Authorization'] = 'Bearer ' + OTURUM.access_token;
+  return b;
+}
+function oturumYaz(){
+  try{ localStorage.setItem('kalan_oturum', JSON.stringify(OTURUM)); }catch(e){}
+}
+function oturumOku(){
+  try{ OTURUM = JSON.parse(localStorage.getItem('kalan_oturum') || 'null'); }catch(e){ OTURUM = null; }
+}
+async function sbIstek(yol, secenekler = {}, yetkili = true){
+  const c = await fetch(AYAR.sbUrl.replace(/\/$/, '') + yol, Object.assign({
+    headers: Object.assign(sbBasliklar(yetkili), secenekler.headers || {})
+  }, secenekler, {headers: Object.assign(sbBasliklar(yetkili), secenekler.headers || {})}));
+  const metin = await c.text();
+  let j = null;
+  try{ j = metin ? JSON.parse(metin) : null; }catch(e){ j = null; }
+  if(!c.ok){
+    const mesaj = (j && (j.error_description || j.msg || j.message || j.error)) || ('HTTP ' + c.status);
+    const h = new Error(mesaj); h.kod = c.status; throw h;
+  }
+  return j;
+}
+async function sbGiris(eposta, sifre){
+  const j = await sbIstek('/auth/v1/token?grant_type=password', {
+    method:'POST', body: JSON.stringify({email: eposta, password: sifre})
+  }, false);
+  OTURUM = {access_token: j.access_token, refresh_token: j.refresh_token,
+    expires_at: Date.now() + (j.expires_in || 3600) * 1000, email: (j.user && j.user.email) || eposta};
+  oturumYaz();
+}
+async function sbKayitOl(eposta, sifre){
+  const j = await sbIstek('/auth/v1/signup', {
+    method:'POST', body: JSON.stringify({email: eposta, password: sifre})
+  }, false);
+  if(j && j.access_token){
+    OTURUM = {access_token: j.access_token, refresh_token: j.refresh_token,
+      expires_at: Date.now() + (j.expires_in || 3600) * 1000, email: eposta};
+    oturumYaz();
+    return true;
+  }
+  return false;   // e-posta doğrulaması bekleniyor
+}
+async function sbTazele(){
+  if(!OTURUM || !OTURUM.refresh_token) return false;
+  try{
+    const j = await sbIstek('/auth/v1/token?grant_type=refresh_token', {
+      method:'POST', body: JSON.stringify({refresh_token: OTURUM.refresh_token})
+    }, false);
+    OTURUM = {access_token: j.access_token, refresh_token: j.refresh_token,
+      expires_at: Date.now() + (j.expires_in || 3600) * 1000, email: OTURUM.email};
+    oturumYaz(); return true;
+  }catch(e){ return false; }
+}
+async function oturumGecerli(){
+  if(!OTURUM) return false;
+  if(Date.now() > OTURUM.expires_at - 60000) return await sbTazele();
+  return true;
+}
+function sbCikis(){
+  OTURUM = null; localStorage.removeItem('kalan_oturum');
+  durumYaz('Oturum kapalı'); girisEkrani();
+}
+
+async function sbYukle({sessiz=false}={}){
+  if(!sbHazir()) return durumYaz('Supabase tanımlı değil');
+  if(!await oturumGecerli()){ girisEkrani(); return; }
+  durumYaz('Yükleniyor…');
+  try{
+    const satirlar = await sbIstek('/rest/v1/kalan_veri?select=tablo,veri');
+    const gelen = {};
+    (satirlar || []).forEach(r => gelen[r.tablo] = r.veri || []);
+    TABLOLAR.forEach(t => D[t] = (gelen[t] || []).map(duzelt));
+    baglariCoz();
+    yereleYaz();
+    durumYaz('Eşitlendi · ' + new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}), 'ok');
+    ciz();
+  }catch(e){
+    durumYaz('Bağlanamadı', 'hata');
+    if(!sessiz) bildir('Veriler alınamadı: ' + e.message);
+  }
+}
+async function sbKaydet(tablolar){
+  if(!await oturumGecerli()){ girisEkrani(); throw new Error('Oturum yok'); }
+  const govde = tablolar.map(t => ({tablo: t, veri: D[t] || []}));
+  await sbIstek('/rest/v1/kalan_veri?on_conflict=user_id,tablo', {
+    method:'POST',
+    headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify(govde)
+  });
+}
+
+/* Giriş ekranı */
+function girisEkrani(kayitMi){
+  kapat();
+  const d = document.createElement('div');
+  d.className = 'kapla';
+  d.innerHTML = `<div class="kutu" style="max-width:380px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div style="width:38px;height:38px;border-radius:12px;background:var(--marka);display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 82 82" width="24" height="24"><defs><clipPath id="gk"><circle cx="41" cy="41" r="27"/></clipPath></defs>
+        <circle cx="41" cy="41" r="30" fill="none" stroke="#F5F8F7" stroke-width="4.5" opacity=".4"/>
+        <path d="M8 45 C18 37 25 53 35.5 45.5 C44 39.4 50 40 56 45 C62 50 68 47 74 42 L74 78 L8 78 Z" fill="#F5F8F7" clip-path="url(#gk)"/></svg>
+      </div>
+      <h3 style="margin:0">${kayitMi ? 'Hesap oluştur' : 'Kalan\'a giriş'}</h3>
+    </div>
+    <form id="gfrm">
+      <div class="alan"><label>E-posta</label><input type="email" name="eposta" required></div>
+      <div class="alan"><label>Parola</label><input type="password" name="sifre" required minlength="6"></div>
+      <button type="submit" class="btn" style="width:100%;justify-content:center">${kayitMi?'Kaydol':'Giriş yap'}</button>
+      <p style="margin-top:12px;font-size:13px;text-align:center;color:var(--mut)">
+        ${kayitMi ? 'Hesabın var mı? <a href="#" id="digeri">Giriş yap</a>'
+                  : 'İlk kez mi? <a href="#" id="digeri">Hesap oluştur</a>'}</p>
+      <p id="ghata" class="gizli" style="margin-top:10px;font-size:13px;color:var(--kirmiziY)"></p>
+    </form></div>`;
+  document.body.appendChild(d);
+  $('#digeri', d).onclick = ev => { ev.preventDefault(); girisEkrani(!kayitMi); };
+  $('#gfrm', d).onsubmit = async ev => {
+    ev.preventDefault();
+    const eposta = d.querySelector('[name=eposta]').value.trim();
+    const sifre = d.querySelector('[name=sifre]').value;
+    const hata = $('#ghata', d);
+    hata.classList.add('gizli');
+    try{
+      if(kayitMi){
+        const girdi = await sbKayitOl(eposta, sifre);
+        if(!girdi){
+          hata.textContent = 'Hesap oluşturuldu. E-postana gönderilen bağlantıyı onayladıktan sonra giriş yap.';
+          hata.classList.remove('gizli');
+          return;
+        }
+      } else {
+        await sbGiris(eposta, sifre);
+      }
+      kapat(); sbYukle();
+    }catch(e){
+      hata.textContent = e.message === 'Invalid login credentials'
+        ? 'E-posta ya da parola hatalı.' : e.message;
+      hata.classList.remove('gizli');
+    }
+  };
+  d.querySelector('[name=eposta]').focus();
 }
 
 /* ---------- Google E-Tablo'dan doğrudan okuma (Apps Script gerekmez) ----------
@@ -605,6 +759,19 @@ function isaretle(...tablolar){
 }
 async function kaydet(){
   if(!kirli.size) return;
+  if(AYAR.mod === 'supabase'){
+    const liste = [...kirli];
+    durumYaz('Kaydediliyor…');
+    try{
+      await sbKaydet(liste);
+      kirli.clear();
+      durumYaz('Kaydedildi · ' + new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}), 'ok');
+    }catch(e){
+      durumYaz('Kaydedilemedi', 'hata');
+      bildir('Kaydedilemedi: ' + e.message + ' — veriler cihazda duruyor.');
+    }
+    return;
+  }
   if(AYAR.mod === 'dosya'){
     if(!dosyaHazir){ durumYaz('Dosya bekliyor — tıkla', 'hata'); return; }
     try{
@@ -1376,6 +1543,24 @@ function gorunumAyarlar(){
   </div>` : ''}
   <div class="izgara i2">
     <div class="kart">
+      <div class="bas"><span>Supabase</span>
+        <span class="rozet ${AYAR.mod==='supabase'?'':'n'}">${AYAR.mod==='supabase'?'etkin':'kapalı'}</span></div>
+      ${OTURUM ? `<p>Oturum: <b>${kacir(OTURUM.email||'')}</b></p>` :
+        '<p>Proje adresini ve anon anahtarını gir, ardından hesabınla giriş yap.</p>'}
+      <div class="alan" style="margin-top:10px"><label>Proje adresi (Project URL)</label>
+        <input id="sbUrlGiris" value="${kacir(AYAR.sbUrl)}" placeholder="https://xxxx.supabase.co"></div>
+      <div class="alan"><label>Anon anahtarı (anon public key)</label>
+        <input id="sbKeyGiris" value="${kacir(AYAR.sbKey)}" placeholder="eyJhbGciOi…"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-eylem="sbKaydetAyar">Kaydet ve bağlan</button>
+        ${OTURUM ? '<button class="btn ikincil" data-eylem="yenile">Yenile</button>'
+                 : '<button class="btn ikincil" data-eylem="sbGirisAc">Giriş yap</button>'}
+        ${OTURUM ? '<button class="btn tehlike" data-eylem="sbCikis">Çıkış</button>' : ''}
+      </div>
+      <p class="etk" style="margin-top:10px">Anon anahtarı gizli değildir, satır düzeyi güvenlik
+      sayesinde kimse başkasının verisini göremez.</p>
+    </div>
+    <div class="kart">
       <div class="bas"><span>Google E-Tablo (okuma)</span>
         <span class="rozet ${AYAR.mod==='tablo'?'':'n'}">${AYAR.mod==='tablo'?'etkin':'kapalı'}</span></div>
       <div class="alan"><label>Tablo adresi ya da kimliği</label>
@@ -1991,6 +2176,7 @@ function yonlendir(){
 }
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
+  'sbKaydetAyar','sbGirisAc','sbCikis','tabloKaydet',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -2003,8 +2189,21 @@ document.addEventListener('click', ev => {
     return bildir('Salt okunur mod açık. Veriyi Google E-Tablo üzerinden gir, sonra Yenile de.');
   }
   const eylemler = {
-    yenile: () => (AYAR.mod === 'tablo' ? tablodanYukle() : verileriYukle()),
+    yenile: () => (AYAR.mod === 'supabase' ? sbYukle()
+      : AYAR.mod === 'tablo' ? tablodanYukle() : verileriYukle()),
     zorlaKaydet: () => { TABLOLAR.forEach(t=>kirli.add(t)); kaydet(); },
+    sbKaydetAyar: () => {
+      const u = $('#sbUrlGiris').value.trim().replace(/\/$/, '');
+      const k = $('#sbKeyGiris').value.trim();
+      if(!/^https:\/\/.+\.supabase\.co$/.test(u))
+        return bildir('Proje adresi https://xxxx.supabase.co biçiminde olmalı.');
+      if(k.length < 30) return bildir('Anon anahtarı eksik görünüyor.');
+      AYAR.sbUrl = u; AYAR.sbKey = k; AYAR.mod = 'supabase'; AYAR.saltOkunur = false;
+      yereleYaz();
+      if(OTURUM) sbYukle(); else girisEkrani();
+    },
+    sbGirisAc: () => girisEkrani(),
+    sbCikis: () => sbCikis(),
     tabloKaydet: () => {
       const k = tabloKimlik($('#tabloGiris').value);
       if(!k) return bildir('Tablo adresini ya da kimliğini yapıştır.');
@@ -2092,20 +2291,25 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', temaUygula
   temaUygula();
   yonlendir();
   const YEREL_DOSYA = location.protocol === 'file:';
+  oturumOku();
+  if(sbHazir()) { AYAR.mod = 'supabase'; AYAR.saltOkunur = false; }
   if(SUNUCU_ICI) AYAR.mod = 'sunucu';
   if(!AYAR.tablo && VARSAYILAN_TABLO) AYAR.tablo = VARSAYILAN_TABLO;
   // Bir adres üzerinden sunuluyorsa yazma engeli yoktur: tam düzenleme
-  if(!SUNUCU_ICI && !YEREL_DOSYA && VARSAYILAN_URL && AYAR.mod !== 'dosya'){
+  if(AYAR.mod !== 'supabase' && !SUNUCU_ICI && !YEREL_DOSYA && VARSAYILAN_URL && AYAR.mod !== 'dosya'){
     AYAR.mod = 'sheets'; AYAR.url = VARSAYILAN_URL; AYAR.saltOkunur = false;
   }
   // Dosya olarak açıldıysa yalnızca okuma yapılabilir
-  if(!SUNUCU_ICI && YEREL_DOSYA && AYAR.mod !== 'dosya'){
+  if(AYAR.mod !== 'supabase' && !SUNUCU_ICI && YEREL_DOSYA && AYAR.mod !== 'dosya'){
     AYAR.mod = 'tablo'; AYAR.saltOkunur = true;
   }
   if(!SUNUCU_ICI && VARSAYILAN_URL && AYAR.mod !== 'dosya' && (!AYAR.url || adresSorunu(AYAR.url))){
     AYAR.url = VARSAYILAN_URL; yereleYaz();
   }
-  if(SUNUCU_ICI) verileriYukle({sessiz:true});
+  if(AYAR.mod === 'supabase'){
+    if(OTURUM) sbYukle({sessiz:true}); else girisEkrani();
+  }
+  else if(SUNUCU_ICI) verileriYukle({sessiz:true});
   else if(AYAR.mod === 'sheets') verileriYukle({sessiz:true});
   else if(AYAR.mod === 'tablo') tablodanYukle({sessiz:true});
   else if(AYAR.mod === 'dosya'){
