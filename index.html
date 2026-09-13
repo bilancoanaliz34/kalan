@@ -131,6 +131,9 @@ td.sag,th.sag{text-align:right}
 .kutu h3{font-size:17px;font-weight:600;margin-bottom:16px}
 .dugmeler{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
 .gizli{display:none!important}
+.etiketler{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 4px}
+.eticip{font-size:12.5px;padding:5px 11px;border-radius:16px;background:var(--cizgi2);color:var(--mut)}
+.eticip.secili{background:var(--acik);color:var(--marka);font-weight:500}
 .serit{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--sariZ);
   color:var(--sariY);border:1px solid var(--sari);border-radius:14px;padding:11px 14px;margin-bottom:18px}
 .serit span{flex:1;font-size:13.5px;min-width:180px}
@@ -214,7 +217,7 @@ const TABLOLAR = ['ayarlar','hesaplar','kategoriler','islemler','butce','borclar
   'yatirimlar','varliklar','fiyatlar','anlikGoruntu'];
 
 let D = {};                    // veri
-let AYAR = { url:'', tablo:'', sbUrl:'', sbKey:'', tema:'sistem', mod:'tablo', dosyaAd:'', saltOkunur:true };
+let AYAR = { url:'', tablo:'', sbUrl:'', sbKey:'', sonHesap:'', tema:'sistem', mod:'tablo', dosyaAd:'', saltOkunur:true };
 let kirli = new Set();         // kaydedilecek sayfalar
 let kaydetZaman = null;
 let aktifSayfa = 'ozet';
@@ -949,12 +952,18 @@ function bakiye(hesapId){
 }
 
 /* Kart borcu: vadesi gelmiş taksitler dahil, ödemeler düşülmüş */
+function kartPaylari(hesapId, i){
+  const n = say(i.taksitSayisi);
+  if(n < 2) return [{donem: kartDonemi(hesapId, i.tarih), tutar: say(i.tryTutar)}];
+  const ilk = kartDonemi(hesapId, i.tarih);
+  return Array.from({length:n}, (_,x) => ({donem: ayEkle(ilk, x), tutar: say(i.tryTutar)/n}));
+}
 function kartBorc(hesapId){
   const buAy = donemStr(bugun());
   let borc = 0;
   (D.islemler||[]).forEach(i => {
     if(i.hesapId === hesapId && i.tur === 'gider'){
-      islemPaylari(i).forEach(p => { if(p.donem <= buAy) borc += p.tutar; });
+      kartPaylari(hesapId, i).forEach(p => { if(p.donem <= buAy) borc += p.tutar; });
     }
     if(i.hedefHesapId === hesapId && i.tur === 'transfer') borc -= say(i.tryTutar);
   });
@@ -966,9 +975,19 @@ function kalanTaksitYuku(hesapId){
   let t = 0;
   (D.islemler||[]).forEach(i => {
     if(i.hesapId === hesapId && i.tur === 'gider')
-      islemPaylari(i).forEach(p => { if(p.donem > buAy) t += p.tutar; });
+      kartPaylari(hesapId, i).forEach(p => { if(p.donem > buAy) t += p.tutar; });
   });
   return t;
+}
+
+/* Bir kart harcamasının hangi ekstre dönemine düştüğü.
+   Kesim gününden sonraki harcamalar bir sonraki ekstreye gider. */
+function kartDonemi(hesapId, tarih){
+  const h = hesap(hesapId) || {};
+  const kesim = say(h.kesimGunu) || 1;
+  const t = new Date(tarih);
+  const d = donemStr(t);
+  return t.getDate() > Math.min(kesim, ayGunSayisi(d)) ? ayEkle(d, 1) : d;
 }
 
 /* Kart ekstresi (verilen dönem için) */
@@ -982,8 +1001,13 @@ function ekstre(hesapId, donem){
   let hesaplanan = 0;
   (D.islemler||[]).forEach(i => {
     if(i.hesapId !== hesapId || i.tur !== 'gider') return;
-    if(i.butceYansimasi === 'taksitli' && say(i.taksitSayisi) > 1){
-      islemPaylari(i).forEach(p => { if(p.donem === donem) hesaplanan += p.tutar; });
+    const n = say(i.taksitSayisi);
+    if(n > 1){
+      // taksitler, alışverişin düştüğü ekstre döneminden başlar
+      const ilk = kartDonemi(hesapId, i.tarih);
+      const fark = (donemTarih(donem).getFullYear() - donemTarih(ilk).getFullYear()) * 12
+        + (donemTarih(donem).getMonth() - donemTarih(ilk).getMonth());
+      if(fark >= 0 && fark < n) hesaplanan += say(i.tryTutar) / n;
     } else {
       const t = new Date(i.tarih);
       if(t >= bas && t <= bit) hesaplanan += say(i.tryTutar);
@@ -1184,12 +1208,34 @@ function formAc({baslik, alanlar, deger={}, kaydet, genis=false, sil=null, ekAlt
     kaydet(v);
     kapat(); ciz();
   };
+  d.addEventListener('click', ev => {
+    const c = ev.target.closest('[data-etiket]');
+    if(!c) return;
+    ev.preventDefault();
+    const alan = d.querySelector('[name="etiketMetin"]');
+    if(!alan) return;
+    const mevcutlar = alan.value.split(',').map(x => x.trim()).filter(Boolean);
+    const e = c.dataset.etiket;
+    const ix = mevcutlar.indexOf(e);
+    if(ix > -1) mevcutlar.splice(ix, 1); else mevcutlar.push(e);
+    alan.value = mevcutlar.join(', ');
+    etiketleriIsaretle(d);
+  });
+  etiketleriIsaretle(d);
   const ilk = d.querySelector('input,select,textarea'); if(ilk) ilk.focus();
   // koşullu alanlar
   d.addEventListener('change', () => kosulluAlanlar(d, alanlar));
-  d.addEventListener('input', () => kosulluAlanlar(d, alanlar));
+  d.addEventListener('input', () => { kosulluAlanlar(d, alanlar); etiketleriIsaretle(d); });
   kosulluAlanlar(d, alanlar);
 }
+function etiketleriIsaretle(d){
+  const alan = d.querySelector('[name="etiketMetin"]');
+  if(!alan) return;
+  const secili = alan.value.split(',').map(x => x.trim().toLocaleLowerCase('tr')).filter(Boolean);
+  $$('[data-etiket]', d).forEach(c =>
+    c.classList.toggle('secili', secili.includes(c.dataset.etiket.toLocaleLowerCase('tr'))));
+}
+
 function kosulluAlanlar(d, alanlar){
   alanlar.forEach(a => {
     if(!a.gorunur) return;
@@ -1212,6 +1258,11 @@ function alanCiz(a, v){
   } else if(a.tip === 'onay'){
     return `<div class="alan" data-alan="${ad}"><label style="display:flex;gap:8px;align-items:center;cursor:pointer">
       <input type="checkbox" name="${ad}" ${ (v??a.on) ? 'checked':''} style="width:auto">${kacir(et)}</label></div>`;
+  } else if(a.tip === 'etiket'){
+    const liste = (typeof a.secenekler === 'function' ? a.secenekler() : (a.secenekler||[]));
+    ic = `<input type="text" name="${ad}" value="${kacir(v??'')}" placeholder="${kacir(a.ipucu||'')}">`
+      + (liste.length ? `<div class="etiketler">${liste.map(e =>
+          `<button type="button" class="eticip" data-etiket="${kacir(e)}">#${kacir(e)}</button>`).join('')}</div>` : '');
   } else if(a.tip === 'metinKutu'){
     ic = `<textarea name="${ad}" rows="${a.satir||4}" placeholder="${kacir(a.ipucu||'')}">${kacir(v??a.on??'')}</textarea>`;
   } else {
@@ -1782,15 +1833,16 @@ function islemFormu(mevcut){
     {ad:'tarih', etiket:'Tarih', tip:'tarih', on: ymd(bugun())},
     {ad:'tutar', etiket:'Tutar', tip:'sayi'},
     {ad:'paraBirimi', etiket:'Para birimi', tip:'secim', secenekler:PARA_SEC, on:'TRY'},
-    {ad:'hesapId', etiket:'Hesap', tip:'secim', secenekler: hesapSec()},
+    {ad:'hesapId', etiket:'Hesap', tip:'secim', secenekler: hesapSec(), on: AYAR.sonHesap || ''},
     {ad:'hedefHesapId', etiket:'Hedef hesap', tip:'secim', secenekler: hesapSec(),
       gorunur: v => v.tur === 'transfer'},
     {ad:'kategoriId', etiket:'Kategori', tip:'secim', secenekler: kategoriSec(),
       gorunur: v => v.tur !== 'transfer'},
     {ad:'aciklama', etiket:'Açıklama', tip:'metin', ipucu:'Migros, kira, fatura…'},
-    {ad:'etiketMetin', etiket:'Etiketler (virgülle)', tip:'metin', ipucu:'tadilat, tatil'},
+    {ad:'etiketMetin', etiket:'Etiketler', tip:'etiket', ipucu:'tadilat, tatil',
+      secenekler: () => [...new Set((D.islemler||[]).flatMap(i => i.etiketler||[]))].sort()},
     {ad:'taksitSayisi', etiket:'Taksit sayısı (kart)', tip:'sayi', gorunur: v => v.tur === 'gider'},
-    {ad:'butceYansimasi', etiket:'Bütçeye yansıma', tip:'secim', on:'tam_ay',
+    {ad:'butceYansimasi', etiket:'Bütçeye yansıma', tip:'secim', on:'taksitli',
       secenekler:[{v:'tam_ay',a:'Tüm tutar alışveriş ayına'},{v:'taksitli',a:'Her ay taksit tutarı kadar'}],
       gorunur: v => v.tur === 'gider' && say(v.taksitSayisi) > 1}
   ];
@@ -1810,12 +1862,13 @@ function islemFormu(mevcut){
         aciklama: v.aciklama,
         etiketler: (v.etiketMetin||'').split(',').map(s=>s.trim()).filter(Boolean),
         taksitSayisi: say(v.taksitSayisi) > 1 ? say(v.taksitSayisi) : '',
-        butceYansimasi: say(v.taksitSayisi) > 1 ? v.butceYansimasi : 'tam_ay',
+        butceYansimasi: say(v.taksitSayisi) > 1 ? (v.butceYansimasi || 'taksitli') : 'tam_ay',
         borcTaksitId: mevcut ? mevcut.borcTaksitId : '',
         kaynak: 'elle'
       };
       if(mevcut) D.islemler = D.islemler.map(x => x.id===kayit.id ? kayit : x);
       else (D.islemler = D.islemler||[]).push(kayit);
+      if(v.hesapId){ AYAR.sonHesap = v.hesapId; yereleYaz(); }
       isaretle('islemler');
     }
   });
