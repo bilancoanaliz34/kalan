@@ -132,6 +132,8 @@ td.sag,th.sag{text-align:right}
 .kutu h3{font-size:17px;font-weight:600;margin-bottom:16px}
 .dugmeler{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
 .gizli{display:none!important}
+.hicon{width:38px;height:38px;border-radius:12px;background:var(--acik);color:var(--marka);
+  display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;flex-shrink:0}
 .acilir{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin-top:14px;
   padding:10px 12px;border-radius:12px;background:var(--cizgi2);font-size:14px;color:var(--ink)}
 .acilir:hover{background:var(--acik)}
@@ -169,6 +171,7 @@ td.sag,th.sag{text-align:right}
     </div>
     <a class="sek" data-git="ozet" href="#ozet"><svg><use href="#s-home"/></svg>Özet</a>
     <a class="sek" data-git="islemler" href="#islemler"><svg><use href="#s-list"/></svg>İşlemler</a>
+    <a class="sek" data-git="hesaplar" href="#hesaplar"><svg><use href="#s-bank"/></svg>Hesaplar</a>
     <a class="sek" data-git="butce" href="#butce"><svg><use href="#s-pie"/></svg>Bütçe</a>
     <a class="sek" data-git="borclar" href="#borclar"><svg><use href="#s-doc"/></svg>Krediler</a>
     <a class="sek" data-git="kartlar" href="#kartlar"><svg><use href="#s-card"/></svg>Kartlar</a>
@@ -190,6 +193,7 @@ td.sag,th.sag{text-align:right}
   <symbol id="s-list" viewBox="0 0 24 24"><path class="ic" d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
   <symbol id="s-pie" viewBox="0 0 24 24"><path class="ic" d="M12 3v9h9A9 9 0 1 1 12 3z"/><path class="ic" d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></symbol>
   <symbol id="s-doc" viewBox="0 0 24 24"><path class="ic" d="M6 4h9l3 3v13H6z"/><path class="ic" d="M9 11h6M9 15h4"/></symbol>
+  <symbol id="s-bank" viewBox="0 0 24 24"><path class="ic" d="M3 10l9-5 9 5M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18"/></symbol>
   <symbol id="s-card" viewBox="0 0 24 24"><rect class="ic" x="3" y="6" width="18" height="12" rx="2"/><path class="ic" d="M3 10h18M7 15h3"/></symbol>
   <symbol id="s-user" viewBox="0 0 24 24"><circle class="ic" cx="12" cy="9" r="3.2"/><path class="ic" d="M5 20c1.2-3.2 4-4.6 7-4.6s5.8 1.4 7 4.6"/></symbol>
   <symbol id="s-chart" viewBox="0 0 24 24"><path class="ic" d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
@@ -230,6 +234,7 @@ let kaydetZaman = null;
 let aktifSayfa = 'ozet';
 let fltr = { ay: donemStr(new Date()), tur:'hepsi', etiket:'', hesap:'' };
 const ACIK_KARTLAR = new Set();   // hareketleri açık duran kartlar
+let butceTur = 'gider';           // bütçe ekranında gider mi gelir mi
 
 /* ---------- küçük yardımcılar ---------- */
 const $ = (s, k=document) => k.querySelector(s);
@@ -1196,6 +1201,45 @@ function butceOzet(donem){
   };
 }
 
+/* Gelir bütçesi: planlanan ve gerçekleşen */
+function kategoriGelir(anaKatId, donem){
+  let t = 0;
+  (D.islemler||[]).forEach(i => {
+    if(i.tur !== 'gelir') return;
+    if(donemStr(i.tarih) !== donem) return;
+    const kok = kokKategori(i.kategoriId);
+    if(!kok || kok.id !== anaKatId) return;
+    t += say(i.tryTutar);
+  });
+  return t;
+}
+function gelirOzet(donem){
+  const kats = anaKategoriler('gelir').map(k => {
+    const plan = butceSatir(k.id, donem);
+    const gercek = kategoriGelir(k.id, donem);
+    return {kat:k, plan, gercek, fark: gercek - plan};
+  }).filter(x => x.plan > 0 || x.gercek > 0);
+  const toplamPlan = kats.reduce((a,x) => a + x.plan, 0);
+  const toplamGercek = kats.reduce((a,x) => a + x.gercek, 0);
+  const gunSayisi = ayGunSayisi(donem);
+  const bu = donemStr(bugun()) === donem;
+  const gecen = bu ? bugun().getDate() : gunSayisi;
+  return {
+    kats, toplamPlan, toplamGercek,
+    fark: toplamGercek - toplamPlan,
+    bekleyen: Math.max(0, toplamPlan - toplamGercek),
+    aySonuTahmin: gecen ? toplamGercek / gecen * gunSayisi : 0
+  };
+}
+/* Planlanan tasarruf: gelir bütçesi eksi gider bütçesi */
+function tasarrufOzet(donem){
+  const g = gelirOzet(donem), x = butceOzet(donem);
+  return {
+    planlanan: g.toplamPlan - x.toplamSade,
+    gerceklesen: g.toplamGercek - x.toplamHarcanan
+  };
+}
+
 /* Yaklaşan ödemeler */
 function yaklasanOdemeler(gun=30){
   const b = bugun(); const liste = [];
@@ -1335,9 +1379,10 @@ function formAc({baslik, alanlar, deger={}, kaydet, genis=false, sil=null, ekAlt
     etiketleriIsaretle(d);
   });
   etiketleriIsaretle(d);
+  secenekTazele(d, alanlar);
   const ilk = d.querySelector('input,select,textarea'); if(ilk) ilk.focus();
   // koşullu alanlar
-  d.addEventListener('change', () => kosulluAlanlar(d, alanlar));
+  d.addEventListener('change', () => { kosulluAlanlar(d, alanlar); secenekTazele(d, alanlar); });
   d.addEventListener('input', () => { kosulluAlanlar(d, alanlar); etiketleriIsaretle(d); });
   kosulluAlanlar(d, alanlar);
 }
@@ -1347,6 +1392,28 @@ function etiketleriIsaretle(d){
   const secili = alan.value.split(',').map(x => x.trim().toLocaleLowerCase('tr')).filter(Boolean);
   $$('[data-etiket]', d).forEach(c =>
     c.classList.toggle('secili', secili.includes(c.dataset.etiket.toLocaleLowerCase('tr'))));
+}
+
+/* Seçenekleri başka bir alana bağlı olan açılır listeleri tazeler */
+function secenekTazele(d, alanlar){
+  const degerler = {};
+  alanlar.forEach(x => {
+    const el = d.querySelector(`[name="${x.ad}"]`);
+    if(el) degerler[x.ad] = x.tip === 'onay' ? el.checked : el.value;
+  });
+  alanlar.forEach(a => {
+    if(!a.bagli) return;
+    const el = d.querySelector(`[name="${a.ad}"]`);
+    if(!el || el.tagName !== 'SELECT') return;
+    const yeni = a.bagli(degerler);
+    const imza = yeni.map(o => o.v).join('|');
+    if(el.dataset.imza === imza) return;
+    const secili = el.value;
+    el.innerHTML = yeni.map(o =>
+      `<option value="${kacir(o.v)}">${kacir(o.a)}</option>`).join('');
+    el.dataset.imza = imza;
+    if(yeni.some(o => String(o.v) === secili)) el.value = secili;
+  });
 }
 
 function kosulluAlanlar(d, alanlar){
@@ -1545,6 +1612,24 @@ function gorunumIslemler(){
 }
 
 function gorunumButce(){
+  return butceTur === 'gelir' ? gorunumGelirButce() : gorunumGiderButce();
+}
+
+function butceSekmeleri(){
+  const d = donemStr(bugun());
+  const t = tasarrufOzet(fltr.ay);
+  return `<div class="sek2" style="margin-bottom:16px">
+    <button data-eylem="butceTur" data-v="gider" class="${butceTur==='gider'?'on':''}">Gider bütçesi</button>
+    <button data-eylem="butceTur" data-v="gelir" class="${butceTur==='gelir'?'on':''}">Gelir bütçesi</button>
+    <span class="etk" style="margin-left:auto;align-self:center">
+      ${ayAdi(fltr.ay)} planlanan tasarruf
+      <b class="sayi ${t.planlanan<0?'eks':'art'}" style="margin-left:6px">${para(t.planlanan)}</b>
+      ${fltr.ay === d ? `· gerçekleşen <b class="sayi ${t.gerceklesen<0?'eks':'art'}">${para(t.gerceklesen)}</b>` : ''}
+    </span>
+  </div>`;
+}
+
+function gorunumGiderButce(){
   const aylar = [fltr.ay, ayEkle(fltr.ay, 1), ayEkle(fltr.ay, 2)];
   const ozetler = aylar.map(a => ({donem:a, o:butceOzet(a)}));
   const kats = anaKategoriler('gider').filter(k =>
@@ -1608,6 +1693,7 @@ function gorunumButce(){
     <button class="btn ikincil" data-eylem="butceIceAktar">Excel'den yükle</button>
     <button class="btn ikincil" data-eylem="butceKopyala">Geçen aydan kopyala</button>
     <button class="btn" data-eylem="butceDuzenle"><svg><use href="#s-plus"/></svg>Limit belirle</button></div>
+  ${butceSekmeleri()}
   <div class="bkaydir">
     <div class="butceIzgara">
       <div></div>${kartlar}
@@ -1621,6 +1707,86 @@ function gorunumButce(){
   </div>
   <p class="etk" style="margin-top:12px">Bir hücreye tıklayarak o kategorinin o aya ait limitini
   değiştirebilirsin. Oklar pencereyi birer ay kaydırır.</p>`;
+}
+
+function gorunumGelirButce(){
+  const aylar = [fltr.ay, ayEkle(fltr.ay, 1), ayEkle(fltr.ay, 2)];
+  const ozetler = aylar.map(a => ({donem:a, o:gelirOzet(a)}));
+  const kats = anaKategoriler('gelir').filter(k =>
+    aylar.some(a => butceSatir(k.id, a) > 0 || kategoriGelir(k.id, a) > 0));
+  const buAy = donemStr(bugun());
+
+  const kartlar = ozetler.map(({donem, o}) => {
+    const oran = o.toplamPlan ? o.toplamGercek / o.toplamPlan : 0;
+    const simdi = donem === buAy;
+    const gelecek = donem > buAy;
+    if(!o.toplamPlan && !o.toplamGercek){
+      return `<div class="bay">
+        <div class="baybas"><b>${ayAdi(donem)}</b></div>
+        <div class="bos" style="padding:14px 0">Gelir planı yok</div>
+        <button class="btn ikincil ince" data-eylem="butceDuzenle" data-donem="${donem}">Gelir planla</button>
+      </div>`;
+    }
+    return `<div class="bay${simdi?' simdi':''}">
+      <div class="baybas"><b>${ayAdi(donem)}</b>${simdi?'<span class="rozet">bu ay</span>':''}</div>
+      <p class="etk" style="margin-top:6px">Gerçekleşen gelir</p>
+      <p class="orta sayi">${para(o.toplamGercek)}</p>
+      ${izgara(Math.min(1, oran))}
+      <table style="margin-top:8px">
+        <tr><td class="etk">Planlanan</td><td class="sag sayi">${para(o.toplamPlan)}</td></tr>
+        ${gelecek ? '' : `<tr><td class="etk">Bekleyen</td><td class="sag sayi">${para(o.bekleyen)}</td></tr>
+        <tr><td class="etk">Fark</td>
+          <td class="sag sayi ${o.fark<0?'eks':'art'}">${o.fark>0?'+':''}${para(o.fark)}</td></tr>`}
+        ${simdi ? `<tr><td class="etk">Ay sonu tahmini</td><td class="sag sayi">${para(o.aySonuTahmin)}</td></tr>` : ''}
+      </table>
+    </div>`;
+  }).join('');
+
+  const satirlar = kats.map(k => {
+    const hucreler = aylar.map(a => {
+      const plan = butceSatir(k.id, a);
+      const gercek = kategoriGelir(k.id, a);
+      const oran = plan ? gercek / plan : (gercek ? 1 : 0);
+      const fark = a > buAy ? 0 : gercek - plan;
+      return `<div class="bhucre" data-eylem="limitAc" data-id="${k.id}" data-donem="${a}">
+        <div class="bsatir"><b class="sayi">${para(gercek)}</b>
+          <span class="etk sayi">${plan ? '/ ' + para(plan) : '—'}</span></div>
+        ${plan || gercek ? izgara(Math.min(1, oran)) : '<div class="iz" style="opacity:.35"></div>'}
+        <div class="bdevir">${plan && fark ? (fark > 0 ? 'fazla ' : 'eksik ') + para(Math.abs(fark)) : ''}</div>
+      </div>`;
+    }).join('');
+    return `<div class="bkat">${kacir(k.ad)}</div>${hucreler}`;
+  }).join('');
+
+  const toplamlar = ozetler.map(({donem, o}) => {
+    const f = donem > buAy ? 0 : o.fark;
+    return `<div class="bhucre btoplam">
+      <div class="bsatir"><b class="sayi">${para(o.toplamGercek)}</b>
+        <span class="etk sayi">/ ${para(o.toplamPlan)}</span></div>
+      <div class="bdevir">${f ? (f > 0 ? 'fazla ' : 'eksik ') + para(Math.abs(f)) : ''}</div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="ust"><h1>Bütçe</h1>${aySecici(fltr.ay)}
+    <button class="btn ikincil" data-eylem="butceDisaAktar">Excel'e aktar</button>
+    <button class="btn ikincil" data-eylem="butceIceAktar">Excel'den yükle</button>
+    <button class="btn ikincil" data-eylem="butceKopyala">Geçen aydan kopyala</button>
+    <button class="btn" data-eylem="butceDuzenle"><svg><use href="#s-plus"/></svg>Gelir planla</button></div>
+  ${butceSekmeleri()}
+  <div class="bkaydir">
+    <div class="butceIzgara">
+      <div></div>${kartlar}
+      ${kats.length ? `<div class="bbaslik">Gelir kalemi</div>
+        ${aylar.map(a => `<div class="bbaslik">${ayAdi(a)}</div>`).join('')}
+        ${satirlar}
+        <div class="bkat btoplam">Toplam</div>${toplamlar}`
+        : `<div class="bkat">—</div>
+           <div class="bhucre" style="grid-column:span 3">${bosKutu('Bu dönemde gelir planı ya da geliri yok.')}</div>`}
+    </div>
+  </div>
+  <p class="etk" style="margin-top:12px">Büyük rakam gerçekleşen geliri, yanındaki planladığın tutarı
+  gösterir. Bir hücreye tıklayarak o ayın planını değiştirebilirsin.</p>`;
 }
 
 function gorunumBorclar(){
@@ -1818,10 +1984,61 @@ function gorunumVarlik(){
   </div>`;
 }
 
+function gorunumHesaplar(){
+  const TURAD = {vadesiz:'Vadesiz', nakit:'Nakit', kmh:'KMH', e_cuzdan:'E-cüzdan',
+    yatirim:'Yatırım hesabı', vadeli:'Vadeli'};
+  const SIRA = ['vadesiz','nakit','e_cuzdan','vadeli','yatirim','kmh'];
+  const hepsi = (D.hesaplar||[]).filter(h => h.tur !== 'kredi_karti');
+  const aktif = hepsi.filter(h => !bool(h.arsiv));
+  const arsiv = hepsi.filter(h => bool(h.arsiv));
+
+  const toplamTL = aktif.reduce((a,h) => a + tl(bakiye(h.id), h.paraBirimi), 0);
+  const kartBorcu = (D.hesaplar||[]).filter(h => h.tur === 'kredi_karti' && !bool(h.arsiv))
+    .reduce((a,h) => a + kartBorc(h.id) + kalanTaksitYuku(h.id), 0);
+
+  const grup = {};
+  aktif.forEach(h => (grup[h.tur] = grup[h.tur] || []).push(h));
+  const turler = SIRA.filter(t => grup[t]).concat(Object.keys(grup).filter(t => !SIRA.includes(t)));
+
+  const satir = h => {
+    const b = bakiye(h.id);
+    const tlKarsilik = tl(b, h.paraBirimi);
+    return `<div class="oge" data-eylem="hesapDuzenle" data-id="${h.id}" style="cursor:pointer">
+      <div class="hicon">${kacir((h.ad||'?').trim().charAt(0).toLocaleUpperCase('tr'))}</div>
+      <div class="t"><b>${kacir(h.ad)}</b>
+        <small>${kacir(h.banka || TURAD[h.tur] || h.tur)}${
+          h.netVarligaDahil === false ? ' · net varlığa dahil değil' : ''}</small></div>
+      <div class="a sayi ${b < 0 ? 'eks' : ''}">${para(b, h.paraBirimi)}
+        ${h.paraBirimi !== 'TRY' ? `<div class="etk" style="font-weight:400;font-size:11.5px">${para(tlKarsilik)}</div>` : ''}
+      </div>
+    </div>`;
+  };
+
+  return `
+  <div class="ust"><h1>Hesaplar</h1>
+    <button class="btn ikincil" data-eylem="transferEkle">Transfer</button>
+    <button class="btn" data-eylem="hesapEkle"><svg><use href="#s-plus"/></svg>Hesap ekle</button></div>
+  <div class="izgara i3" style="margin-bottom:16px">
+    <div class="kart"><p class="etk">Toplam bakiye</p>
+      <p class="orta sayi">${para(toplamTL)}</p><p class="etk">${aktif.length} hesap</p></div>
+    <div class="kart"><p class="etk">Kart borcu</p>
+      <p class="orta sayi ${kartBorcu>0?'eks':''}">${para(-kartBorcu)}</p>
+      <p class="etk"><a href="#kartlar">Kartlar ›</a></p></div>
+    <div class="kart"><p class="etk">Net nakit</p>
+      <p class="orta sayi">${para(toplamTL - kartBorcu)}</p>
+      <p class="etk">bakiye eksi kart borcu</p></div>
+  </div>
+  ${aktif.length ? turler.map(t => `<div class="kart" style="margin-bottom:16px">
+      <div class="bas"><span>${kacir(TURAD[t] || t)}</span>
+        <span class="etk sayi">${para(grup[t].reduce((a,h) => a + tl(bakiye(h.id), h.paraBirimi), 0))}</span></div>
+      <div class="liste">${grup[t].map(satir).join('')}</div>
+    </div>`).join('') : `<div class="kart">${bosKutu('Hesap yok. Sağ üstten ekleyebilirsin.')}</div>`}
+  ${arsiv.length ? `<div class="kart">
+    <div class="bas"><span>Arşiv</span></div>
+    <div class="liste">${arsiv.map(satir).join('')}</div></div>` : ''}`;
+}
+
 function gorunumAyarlar(){
-  const h = D.hesaplar||[];
-  const TURAD = {vadesiz:'Vadesiz', nakit:'Nakit', kredi_karti:'Kredi kartı', kmh:'KMH',
-    e_cuzdan:'E-cüzdan', yatirim:'Yatırım hesabı', vadeli:'Vadeli'};
   return `
   <div class="ust"><h1>Ayarlar</h1>
     <span class="rozet n">${location.protocol === 'file:' ? 'Dosyadan açıldı' : 'Adresten açıldı'}</span>
@@ -1936,17 +2153,6 @@ function gorunumAyarlar(){
     </div>
   </div>
   <div class="kart" style="margin-top:16px">
-    <div class="bas"><span>Hesaplar</span>
-      <button class="btn ince" data-eylem="hesapEkle">Hesap ekle</button></div>
-    ${h.length ? `<table>
-      <tr><th>Ad</th><th>Tür</th><th>Banka</th><th class="sag">Bakiye</th><th></th></tr>
-      ${h.map(x => `<tr><td>${kacir(x.ad)}${bool(x.arsiv)?' <span class="rozet n">arşiv</span>':''}</td>
-        <td>${kacir(TURAD[x.tur]||x.tur)}</td><td>${kacir(x.banka||'')}</td>
-        <td class="sag sayi">${x.tur==='kredi_karti'?para(-kartBorc(x.id)):para(bakiye(x.id), x.paraBirimi)}</td>
-        <td class="sag"><button class="btn ikincil ince" data-eylem="hesapDuzenle" data-id="${x.id}">Düzenle</button></td></tr>`).join('')}
-    </table>` : bosKutu('Hesap yok. Önce bir hesap ekle.')}
-  </div>
-  <div class="kart" style="margin-top:16px">
     <div class="bas"><span>Kategoriler</span>
       <button class="btn ikincil ince" data-eylem="kategoriTohum">Hazır listeyi yükle</button>
       <button class="btn ince" data-eylem="kategoriEkle">Kategori ekle</button></div>
@@ -1989,9 +2195,9 @@ function gorunumAyarlar(){
 
 const PARA_SEC = [{v:'TRY',a:'TRY'},{v:'USD',a:'USD'},{v:'EUR',a:'EUR'}];
 
-function islemFormu(mevcut){
+function islemFormu(mevcut, onTur){
   const alanlar = [
-    {ad:'tur', etiket:'Tür', tip:'secim', on:'gider',
+    {ad:'tur', etiket:'Tür', tip:'secim', on: onTur || 'gider',
       secenekler:[{v:'gider',a:'Gider'},{v:'gelir',a:'Gelir'},{v:'transfer',a:'Transfer'}]},
     {ad:'tarih', etiket:'Tarih', tip:'tarih', on: ymd(bugun())},
     {ad:'tutar', etiket:'Tutar', tip:'sayi'},
@@ -2000,6 +2206,7 @@ function islemFormu(mevcut){
     {ad:'hedefHesapId', etiket:'Hedef hesap', tip:'secim', secenekler: hesapSec(),
       gorunur: v => v.tur === 'transfer'},
     {ad:'kategoriId', etiket:'Kategori', tip:'secim', secenekler: kategoriSec(),
+      bagli: v => kategoriSec(v.tur === 'gelir' ? 'gelir' : 'gider')(),
       gorunur: v => v.tur !== 'transfer'},
     {ad:'aciklama', etiket:'Açıklama', tip:'metin', ipucu:'Migros, kira, fatura…'},
     {ad:'etiketMetin', etiket:'Etiketler', tip:'etiket', ipucu:'tadilat, tatil',
@@ -2219,12 +2426,14 @@ function kartOde(hesapId){
 function limitFormu(katId, donemSecili){
   const donem = donemSecili || fltr.ay;
   const k = kategori(katId);
+  const gelirMi = k && k.yon === 'gelir';
   const mevcut = (D.butce||[]).find(b => b.kategoriId === katId && b.donem === donem);
   formAc({
     baslik: (k ? k.ad : '') + ' · ' + ayAdi(donem),
     alanlar: [
-      {ad:'limitTutari', etiket:`Aylık limit (devir ${para(devir(katId, donem))})`, tip:'sayi',
-        on: mevcut ? mevcut.limitTutari : ''},
+      {ad:'limitTutari',
+        etiket: gelirMi ? 'Beklenen gelir' : `Aylık limit (devir ${para(devir(katId, donem))})`,
+        tip:'sayi', on: mevcut ? mevcut.limitTutari : ''},
       {ad:'ileriAylar', etiket:'Aynı tutarı sonraki 11 aya da uygula', tip:'onay'}
     ],
     kaydet: v => {
@@ -2239,24 +2448,30 @@ function limitFormu(katId, donemSecili){
     }
   });
 }
+
 function butceDuzenleFormu(donemSecili){
   const donem = donemSecili || fltr.ay;
-  const kats = anaKategoriler('gider');
+  const gelirMi = butceTur === 'gelir';
+  const kats = anaKategoriler(gelirMi ? 'gelir' : 'gider');
   if(!kats.length) return bildir('Önce kategori ekle.');
   const alanlar = kats.map(k => ({ad:'k_' + k.id, etiket:k.ad, tip:'sayi'}));
-  alanlar.push({ad:'ileriAylar', etiket:'Aynı limitleri sonraki 11 aya da uygula', tip:'onay'});
+  alanlar.push({ad:'ileriAylar',
+    etiket: gelirMi ? 'Aynı planı sonraki 11 aya da uygula' : 'Aynı limitleri sonraki 11 aya da uygula',
+    tip:'onay'});
   const deger = {};
   kats.forEach(k => {
     const b = (D.butce||[]).find(x => x.kategoriId === k.id && x.donem === donem);
     if(b) deger['k_' + k.id] = b.limitTutari;
   });
   formAc({
-    baslik: ayAdi(donem) + ' limitleri', genis:true, alanlar, deger,
+    baslik: ayAdi(donem) + (gelirMi ? ' gelir planı' : ' limitleri'), genis:true, alanlar, deger,
     kaydet: v => {
       const kac = v.ileriAylar ? 12 : 1;
+      const katIdler = new Set(kats.map(k => k.id));
       for(let i = 0; i < kac; i++){
         const d = ayEkle(donem, i);
-        D.butce = (D.butce||[]).filter(b => b.donem !== d);
+        // yalnızca bu sekmenin kategorilerine dokun
+        D.butce = (D.butce||[]).filter(b => !(b.donem === d && katIdler.has(b.kategoriId)));
         kats.forEach(k => {
           const t = say(v['k_' + k.id]);
           if(t > 0) D.butce.push({id:uid(), kategoriId:k.id, donem:d, limitTutari:t});
@@ -2323,17 +2538,18 @@ function csvCoz(metin){
 
 /* Bütçeyi Excel'de açılabilen dosyaya aktarır: 12 ay, kategori bazında */
 function butceDisaAktar(){
-  const kats = anaKategoriler('gider');
+  const gelirMi = butceTur === 'gelir';
+  const kats = anaKategoriler(gelirMi ? 'gelir' : 'gider');
   if(!kats.length) return bildir('Önce kategori ekle.');
   const aylar = Array.from({length:12}, (_,i) => ayEkle(fltr.ay, i));
-  const basliklar = ['Kategori'].concat(aylar.map(ayAdi));
+  const basliklar = [gelirMi ? 'Gelir kalemi' : 'Kategori'].concat(aylar.map(ayAdi));
   const satirlar = kats.map(k => [k.ad].concat(aylar.map(a => butceSatir(k.id, a) || 0)));
   const metin = '\ufeff' + [basliklar].concat(satirlar)
     .map(r => r.map(csvHucre).join(';')).join('\r\n');
   const b = new Blob([metin], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(b);
-  a.download = 'kalan-butce-' + fltr.ay + '.csv';
+  a.download = 'kalan-' + (gelirMi ? 'gelir' : 'gider') + '-butce-' + fltr.ay + '.csv';
   a.click();
   bildir('Dosya indirildi. Excel ile açıp limitleri düzenledikten sonra aynı biçimde kaydet.');
 }
@@ -2381,10 +2597,12 @@ function butceMetindenAktar(metin){
   let yazilan = 0, bilinmeyen = [];
   satirlar.slice(1).forEach(satir => {
     const ad = String(satir[0]||'').trim();
-    if(!ad || harfSadeles(ad) === 'toplam' || harfSadeles(ad) === 'kategori') return;
-    let k = anaKategoriler('gider').find(x => harfSadeles(x.ad) === harfSadeles(ad));
+    if(!ad || harfSadeles(ad) === 'toplam' || harfSadeles(ad) === 'kategori'
+       || harfSadeles(ad) === 'gelirkalemi') return;
+    const yon = butceTur === 'gelir' ? 'gelir' : 'gider';
+    let k = anaKategoriler(yon).find(x => harfSadeles(x.ad) === harfSadeles(ad));
     if(!k){
-      k = {id:uid(), parentId:'', ad, yon:'gider', arsiv:false};
+      k = {id:uid(), parentId:'', ad, yon, arsiv:false};
       (D.kategoriler = D.kategoriler||[]).push(k);
       bilinmeyen.push(ad);
     }
@@ -2406,11 +2624,12 @@ function butceMetindenAktar(metin){
 
 function butceKopyala(){
   const onceki = ayEkle(fltr.ay, -1);
-  const kaynak = (D.butce||[]).filter(b => b.donem === onceki);
-  if(!kaynak.length) return bildir('Geçen ay için limit yok.');
-  D.butce = (D.butce||[]).filter(b => b.donem !== fltr.ay)
+  const katIdler = new Set(anaKategoriler(butceTur === 'gelir' ? 'gelir' : 'gider').map(k => k.id));
+  const kaynak = (D.butce||[]).filter(b => b.donem === onceki && katIdler.has(b.kategoriId));
+  if(!kaynak.length) return bildir('Geçen ay için kayıt yok.');
+  D.butce = (D.butce||[]).filter(b => !(b.donem === fltr.ay && katIdler.has(b.kategoriId)))
     .concat(kaynak.map(b => ({...b, id:uid(), donem: fltr.ay})));
-  isaretle('butce'); ciz(); bildir(kaynak.length + ' limit kopyalandı.');
+  isaretle('butce'); ciz(); bildir(kaynak.length + ' kayıt kopyalandı.');
 }
 
 function kisiFormu(mevcut){
@@ -2559,7 +2778,8 @@ function tekrarFormu(mevcut){
       {ad:'tutar', etiket:'Tutar', tip:'sayi'},
       {ad:'paraBirimi', etiket:'Para birimi', tip:'secim', secenekler:PARA_SEC, on:'TRY'},
       {ad:'hesapId', etiket:'Hesap', tip:'secim', secenekler: hesapSec()},
-      {ad:'kategoriId', etiket:'Kategori', tip:'secim', secenekler: kategoriSec()},
+      {ad:'kategoriId', etiket:'Kategori', tip:'secim', secenekler: kategoriSec(),
+        bagli: v => kategoriSec(v.tur === 'gelir' ? 'gelir' : 'gider')()},
       {ad:'sonrakiTarih', etiket:'Sonraki tarih', tip:'tarih', on:ymd(bugun())},
       {ad:'otomatikIsle', etiket:'Vadesi gelince otomatik kaydet', tip:'onay'},
       {ad:'aktif', etiket:'Aktif', tip:'onay', on:true}
@@ -2618,7 +2838,7 @@ function iceAktar(){
    =================================================================== */
 
 const GORUNUMLER = {
-  ozet: gorunumOzet, islemler: gorunumIslemler, butce: gorunumButce,
+  ozet: gorunumOzet, islemler: gorunumIslemler, hesaplar: gorunumHesaplar, butce: gorunumButce,
   borclar: gorunumBorclar, kartlar: gorunumKartlar, kisiler: gorunumKisiler,
   yatirim: gorunumYatirim, varlik: gorunumVarlik, ayarlar: gorunumAyarlar
 };
@@ -2648,7 +2868,7 @@ function yonlendir(){
 }
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
-  'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket',
+  'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -2722,6 +2942,7 @@ document.addEventListener('click', ev => {
     fltrEtiket: () => { fltr.etiket = el.dataset.v; ciz(); },
     butceDuzenle: () => butceDuzenleFormu(el.dataset.donem),
     butceKopyala: butceKopyala,
+    butceTur: () => { butceTur = el.dataset.v; ciz(); },
     butceDisaAktar: butceDisaAktar,
     butceIceAktar: butceIceAktar,
     limitAc: () => limitFormu(id, el.dataset.donem),
@@ -2730,6 +2951,7 @@ document.addEventListener('click', ev => {
     planGir: () => planFormu(id),
     taksitOde: () => taksitOde(id),
     hesapEkle: () => hesapFormu(null, el.dataset.tur),
+    transferEkle: () => islemFormu(null, 'transfer'),
     hesapDuzenle: () => hesapFormu((D.hesaplar||[]).find(x=>x.id===id)),
     ekstreDuzelt: () => ekstreDuzelt(id),
     kartOde: () => kartOde(id),
