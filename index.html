@@ -132,6 +132,12 @@ td.sag,th.sag{text-align:right}
 .kutu h3{font-size:17px;font-weight:600;margin-bottom:16px}
 .dugmeler{display:flex;gap:9px;justify-content:flex-end;margin-top:18px}
 .gizli{display:none!important}
+.acilir{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin-top:14px;
+  padding:10px 12px;border-radius:12px;background:var(--cizgi2);font-size:14px;color:var(--ink)}
+.acilir:hover{background:var(--acik)}
+.acilir b{font-weight:500}
+.acilir .ok{transition:transform .15s;flex-shrink:0;color:var(--mut)}
+.acilir .ok.acik{transform:rotate(90deg)}
 .etiketler{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 4px}
 .eticip{font-size:12.5px;padding:5px 11px;border-radius:16px;background:var(--cizgi2);color:var(--mut)}
 .eticip.secili{background:var(--acik);color:var(--marka);font-weight:500}
@@ -223,6 +229,7 @@ let kirli = new Set();         // kaydedilecek sayfalar
 let kaydetZaman = null;
 let aktifSayfa = 'ozet';
 let fltr = { ay: donemStr(new Date()), tur:'hepsi', etiket:'', hesap:'' };
+const ACIK_KARTLAR = new Set();   // hareketleri açık duran kartlar
 
 /* ---------- küçük yardımcılar ---------- */
 const $ = (s, k=document) => k.querySelector(s);
@@ -1119,19 +1126,24 @@ function ekstre(hesapId, donem){
   const onceki = (D.ekstreler||[]).find(e => e.hesapId === hesapId && e.donem === oncekiDonem);
   let devreden = 0, tahminiFaiz = 0;
   if(onceki){
-    const oncekiBorc = say(onceki.bankaTutari) || ekstre(hesapId, oncekiDonem, true).hesaplanan;
-    devreden = Math.max(0, oncekiBorc - say(onceki.odenen));
+    // önceki dönemden ödenmeden kalan her şey (borç + devir + faiz) devreder
+    const oncekiE = ekstre(hesapId, oncekiDonem);
+    devreden = Math.max(0, oncekiE.kalan);
     tahminiFaiz = say(kayit.gercekFaiz) || devreden * (say(h.faizOrani)||0);
   }
   const gecerli = say(kayit.bankaTutari) || hesaplanan;
   const sonOdeme = new Date(d.getFullYear(), d.getMonth(), Math.min(sonOdemeGun, ayGunSayisi(donem)));
   if(sonOdemeGun < kesim) sonOdeme.setMonth(sonOdeme.getMonth()+1);
+  const toplamBorc = gecerli + devreden + tahminiFaiz;
+  const odenen = say(kayit.odenen);
+  const asgari = toplamBorc * (say(h.asgariOran) || 0.2);
   return {
     hesapId, donem, hesaplanan, bankaTutari: kayit.bankaTutari, gecerli,
-    devreden, tahminiFaiz, odenen: say(kayit.odenen),
-    asgari: gecerli * (say(h.asgariOran) || 0.2),
+    devreden, tahminiFaiz, odenen, toplamBorc, asgari,
+    asgariKarsilandi: toplamBorc > 0 && odenen >= asgari - 0.5,
+    tamOdendi: toplamBorc > 0 && odenen >= toplamBorc - 0.5,
     kesimTarihi: bit, sonOdemeTarihi: sonOdeme,
-    kalan: gecerli + devreden + tahminiFaiz - say(kayit.odenen),
+    kalan: toplamBorc - odenen,
     kayitId: kayit.id
   };
 }
@@ -1199,7 +1211,7 @@ function yaklasanOdemeler(gun=30){
   });
   (D.hesaplar||[]).filter(h => h.tur === 'kredi_karti' && !bool(h.arsiv)).forEach(h => {
     const e = ekstre(h.id, donemStr(b));
-    if(e.kalan <= 0) return;
+    if(e.kalan <= 0 || e.asgariKarsilandi) return;
     const f = gunFark(e.sonOdemeTarihi, b);
     if(f > gun || f < -60) return;
     liste.push({tur:'Kart', ad:h.ad, alt:'Son ödeme', tarih: ymd(e.sonOdemeTarihi),
@@ -1666,6 +1678,15 @@ function gorunumKartlar(){
     const e = ekstre(h.id, donem);
     const kullanilan = kartBorc(h.id) + kalanTaksitYuku(h.id);
     const limit = say(h.limit) || 0;
+    const hareketler = ekstreHareketleri(h.id, donem);
+    const acik = ACIK_KARTLAR.has(h.id);
+    const donemBasi = new Date(donemTarih(donem).getFullYear(), donemTarih(donem).getMonth()-1,
+      Math.min(say(h.kesimGunu)||1, 28)+1);
+    const durumRozet = e.tamOdendi
+      ? '<span class="rozet">Ödendi</span>'
+      : (e.asgariKarsilandi
+        ? `<span class="rozet">Asgari ödendi · ${para(e.kalan)} devrediyor</span>`
+        : `<span class="rozet ${gunFark(e.sonOdemeTarihi,bugun())<=3?'s':''}">${para(e.kalan)} ödenecek</span>`);
     return `<div class="kart" style="margin-bottom:16px">
       <div class="bas"><span>${kacir(h.ad)}</span>
         <span class="etk">${kacir(h.banka||'')}</span>
@@ -1681,33 +1702,30 @@ function gorunumKartlar(){
           <p class="etk">Limit ${para(limit)}</p></div>
         <div><p class="etk">${ayAdi(donem)} son ödeme</p>
           <p class="orta">${trTarih(e.sonOdemeTarihi)}</p>
-          <span class="rozet ${gunFark(e.sonOdemeTarihi,bugun())<=3?'s':''}">${e.kalan>0?para(e.kalan)+' ödenecek':'Ödendi'}</span></div>
+          ${durumRozet}</div>
       </div>
-      <div class="izgara i2" style="margin-top:14px;align-items:start">
-      <table>
+      <table style="margin-top:14px;max-width:560px">
         <tr><td class="etk">Hesaplanan dönem borcu</td><td class="sag sayi">${para(e.hesaplanan)}</td></tr>
         ${e.bankaTutari?`<tr><td class="etk">Banka ekstre tutarı</td><td class="sag sayi">${para(e.bankaTutari)}</td></tr>`:''}
-        <tr><td class="etk">Asgari ödeme</td><td class="sag sayi">${para(e.asgari)}</td></tr>
         <tr><td class="etk">Devreden bakiye</td><td class="sag sayi">${para(e.devreden)}</td></tr>
         <tr><td class="etk">Tahmini faiz</td><td class="sag sayi">${para(e.tahminiFaiz)}</td></tr>
+        <tr><td class="etk">Toplam borç</td><td class="sag sayi">${para(e.toplamBorc)}</td></tr>
+        <tr><td class="etk">Asgari ödeme</td><td class="sag sayi ${e.asgariKarsilandi?'art':''}">${para(e.asgari)}</td></tr>
         <tr><td class="etk">Bu dönem ödenen</td><td class="sag sayi">${para(e.odenen)}</td></tr>
       </table>
-      <div>
-        <div class="bas" style="margin-bottom:8px"><span>${ayAdi(donem)} dönemi hareketleri</span>
-          <span class="etk">${trTarih(new Date(donemTarih(donem).getFullYear(), donemTarih(donem).getMonth()-1,
-            Math.min(say(h.kesimGunu)||1, 28)+1))} – ${trTarih(e.kesimTarihi)}</span></div>
-        <div class="liste">${(() => {
-          const hareketler = ekstreHareketleri(h.id, donem);
-          if(!hareketler.length) return bosKutu('Bu dönemde hareket yok.');
-          return hareketler.map(x => `<div class="oge" ${x.tur==='harcama'
-              ? `data-eylem="islemAc" data-id="${x.id}" style="cursor:pointer"` : ''}>
-            <div class="gun">${new Date(x.tarih).getDate()}<small>${kisaAy(x.tarih)}</small></div>
-            <div class="t"><b>${kacir(x.ad)}</b><small>${kacir(x.alt)}</small></div>
-            <div class="a sayi ${x.tutar < 0 ? 'art' : ''}">${x.tutar < 0 ? '+' : ''}${para(Math.abs(x.tutar))}</div>
-          </div>`).join('');
-        })()}</div>
-      </div>
-      </div>
+      <button class="acilir" data-eylem="kartHareket" data-id="${h.id}">
+        <svg class="ok ${acik?'acik':''}" viewBox="0 0 24 24" width="16" height="16"><path class="ic" d="M9 6l6 6-6 6"/></svg>
+        <b>${ayAdi(donem)} dönemi hareketleri</b>
+        <span class="rozet n">${hareketler.length}</span>
+        <span class="etk" style="flex:1;text-align:right">${trTarih(donemBasi)} – ${trTarih(e.kesimTarihi)}</span>
+      </button>
+      ${acik ? `<div class="liste" style="margin-top:4px">${
+        hareketler.length ? hareketler.map(x => `<div class="oge" ${x.tur==='harcama'
+            ? `data-eylem="islemAc" data-id="${x.id}" style="cursor:pointer"` : ''}>
+          <div class="gun">${new Date(x.tarih).getDate()}<small>${kisaAy(x.tarih)}</small></div>
+          <div class="t"><b>${kacir(x.ad)}</b><small>${kacir(x.alt)}</small></div>
+          <div class="a sayi ${x.tutar < 0 ? 'art' : ''}">${x.tutar < 0 ? '+' : ''}${para(Math.abs(x.tutar))}</div>
+        </div>`).join('') : bosKutu('Bu dönemde hareket yok.')}</div>` : ''}
     </div>`;
   }).join('') : `<div class="kart">${bosKutu('Kayıtlı kredi kartı yok.')}</div>`}`;
 }
@@ -1844,6 +1862,7 @@ function gorunumAyarlar(){
         <button class="btn" data-eylem="sbKaydetAyar">Kaydet ve bağlan</button>
         ${OTURUM ? '<button class="btn ikincil" data-eylem="yenile">Yenile</button>'
                  : '<button class="btn ikincil" data-eylem="sbGirisAc">Giriş yap</button>'}
+        ${OTURUM ? '<button class="btn ikincil" data-eylem="sbParolaAc">Parolayı değiştir</button>' : ''}
         ${OTURUM ? '<button class="btn tehlike" data-eylem="sbCikis">Çıkış</button>' : ''}
       </div>
       <p class="etk" style="margin-top:10px">${VARSAYILAN_SB_URL
@@ -2629,7 +2648,7 @@ function yonlendir(){
 }
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
-  'sbKaydetAyar','sbGirisAc','sbCikis','tabloKaydet',
+  'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -2656,6 +2675,19 @@ document.addEventListener('click', ev => {
       if(OTURUM) sbYukle(); else girisEkrani();
     },
     sbGirisAc: () => girisEkrani(),
+    sbParolaAc: () => {
+      if(!OTURUM) return girisEkrani();
+      formAc({
+        baslik:'Parolayı değiştir',
+        alanlar:[{ad:'yeni', etiket:'Yeni parola (en az 6 karakter)', tip:'metin'}],
+        kaydet: async v => {
+          const yeni = String(v.yeni||'');
+          if(yeni.length < 6) return bildir('Parola en az 6 karakter olmalı.');
+          try{ await sbParolaDegistir(yeni); bildir('Parola güncellendi. Diğer cihazlarda yeni parolayla gir.'); }
+          catch(e){ bildir('Değiştirilemedi: ' + e.message); }
+        }
+      });
+    },
     sbCikis: () => sbCikis(),
     tabloKaydet: () => {
       const k = tabloKimlik($('#tabloGiris').value);
@@ -2701,6 +2733,7 @@ document.addEventListener('click', ev => {
     hesapDuzenle: () => hesapFormu((D.hesaplar||[]).find(x=>x.id===id)),
     ekstreDuzelt: () => ekstreDuzelt(id),
     kartOde: () => kartOde(id),
+    kartHareket: () => { ACIK_KARTLAR.has(id) ? ACIK_KARTLAR.delete(id) : ACIK_KARTLAR.add(id); ciz(); },
     kisiEkle: () => kisiFormu(),
     kisiBorcEkle: kisiBorcFormu,
     kisiOdeme: () => kisiOdeme(id),
