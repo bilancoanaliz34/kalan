@@ -965,17 +965,47 @@ function fiyatServisi(){
 async function fiyatIstek(parametreler){
   const adres = fiyatServisi();
   if(!adres) throw new Error('Supabase bağlantısı yok. Ayarlar ekranından bağlan.');
-  if(!await oturumGecerli()) throw new Error('Oturum açık değil.');
   const q = new URLSearchParams(parametreler);
-  const c = await fetch(adres + '?' + q.toString(), {
-    headers: {'apikey': AYAR.sbKey, 'Authorization': 'Bearer ' + OTURUM.access_token}
-  });
-  const metin = await c.text();
+  const tam = adres + '?' + q.toString();
+
+  const getir = async (secenekler) => {
+    let c;
+    try{ c = await fetch(tam, secenekler); }
+    catch(e){ const h = new Error(e.message); h.agHatasi = true; throw h; }
+    return fiyatYanit(c);
+  };
+
+  // 1) Oturum başlıklarıyla dene (Verify JWT açıkken gereken yol)
+  let agHatasi = null;
+  if(await oturumGecerli()){
+    try{
+      return await getir({headers: {'apikey': AYAR.sbKey,
+        'Authorization': 'Bearer ' + OTURUM.access_token}});
+    }catch(e){
+      if(!e.agHatasi) throw e;      // sunucu yanıt verdi ama hata döndü
+      agHatasi = e;
+    }
+  }
+  // 2) Başlıksız sade istek (Verify JWT kapalıysa ön kontrol hiç gerekmez)
+  try{
+    return await getir();
+  }catch(e){
+    if(e.agHatasi && agHatasi) throw new Error(
+      'Servise ulaşılamadı. Supabase > Edge Functions > fiyat ayarlarında "Verify JWT" kapalı olmalı, ' +
+      'ya da fonksiyon henüz yayınlanmamış olabilir.');
+    throw e;
+  }
+}
+
+async function fiyatYanit(c){
+  let metin = '';
+  try{ metin = await c.text(); }
+  catch(e){ const h = new Error('Yanıt okunamadı'); h.agHatasi = true; throw h; }
   let j = null;
   try{ j = metin ? JSON.parse(metin) : null; }catch(e){}
   if(!c.ok){
     if(c.status === 404)
-      throw new Error('Fiyat fonksiyonu bulunamadı. Supabase panelinde Edge Functions altında "fiyat" adıyla yayınlanmış olmalı.');
+      throw new Error('Fiyat fonksiyonu bulunamadı. Supabase > Edge Functions altında adı tam olarak "fiyat" olmalı.');
     throw new Error((j && (j.hata || j.message)) || ('HTTP ' + c.status));
   }
   return j;
@@ -3833,38 +3863,39 @@ document.addEventListener('click', ev => {
       const adres = fiyatServisi();
       satir.push('Adres: ' + (adres || '(yok)'));
       satir.push('Oturum: ' + (OTURUM ? OTURUM.email || 'açık' : 'KAPALI'));
-      if(!adres){
-        alert(satir.join('\n') + '\n\nSupabase bağlantısı yok. Ayarlar ekranından bağlan.');
-        return;
+      if(!adres){ alert(satir.join('\n') + '\n\nSupabase bağlantısı yok.'); return; }
+
+      const dene = async (ad, secenekler) => {
+        try{
+          const c = await fetch(adres + '?action=ping', secenekler);
+          const metin = (await c.text()).slice(0, 300);
+          satir.push(ad + ': HTTP ' + c.status + ' — ' + (metin || '(boş)'));
+          return c.status;
+        }catch(e){
+          satir.push(ad + ': ulaşılamadı (' + e.message + ')');
+          return 0;
+        }
+      };
+
+      const a = OTURUM
+        ? await dene('Oturumlu istek', {headers:{'apikey': AYAR.sbKey,
+            'Authorization': 'Bearer ' + OTURUM.access_token}})
+        : null;
+      const b = await dene('Başlıksız istek', undefined);
+
+      if(a === 200 || b === 200){
+        satir.push('\nServis çalışıyor.');
+      } else if(a === 404 || b === 404){
+        satir.push('\nFonksiyon bulunamadı. Edge Functions listesinde adı tam olarak "fiyat" olmalı.');
+      } else if(a === 0 && b === 0){
+        satir.push('\nHiçbir istek ulaşmadı. İki olası sebep:');
+        satir.push('1) Fonksiyon henüz yayınlanmamış.');
+        satir.push('2) Edge Functions > fiyat ayarlarında "Verify JWT" açık — kapatıp kaydet.');
+      } else if(a === 401 || b === 401){
+        satir.push('\nYetki reddedildi. "Verify JWT" kapalı olmalı ya da oturumu yenile.');
+      } else {
+        satir.push('\nFonksiyon hata verdi. Supabase > Edge Functions > fiyat > Logs bölümüne bak.');
       }
-      if(!OTURUM){
-        alert(satir.join('\n') + '\n\nÖnce giriş yapman gerekiyor.');
-        return;
-      }
-      try{
-        const c = await fetch(adres + '?action=ping', {
-          headers: {'apikey': AYAR.sbKey, 'Authorization': 'Bearer ' + OTURUM.access_token}
-        });
-        const metin = (await c.text()).slice(0, 400);
-        satir.push('HTTP: ' + c.status + ' ' + c.statusText);
-        satir.push('Yanıt: ' + (metin || '(boş)'));
-        if(c.status === 404) satir.push('\nFonksiyon bulunamadı. Supabase > Edge Functions listesinde adı tam olarak "fiyat" olmalı.');
-        else if(c.status === 401) satir.push('\nYetki reddedildi. Çıkış yapıp tekrar giriş yapmayı dene.');
-        else if(c.status >= 500) satir.push('\nFonksiyon çalışırken hata verdi. Supabase > Edge Functions > fiyat > Logs bölümüne bak.');
-        else if(c.ok) satir.push('\nServis çalışıyor.');
-      }catch(e){
-        satir.push('Ağ hatası: ' + e.message);
-        satir.push('\nFonksiyon hiç yayınlanmamış olabilir ya da tarayıcı isteği engelledi.');
-      }
-      // fiyat denemesi
-      try{
-        const c2 = await fetch(adres + '?bist=THYAO&doviz=USD', {
-          headers: {'apikey': AYAR.sbKey, 'Authorization': 'Bearer ' + OTURUM.access_token}
-        });
-        const t2 = (await c2.text()).slice(0, 400);
-        satir.push('\nFiyat denemesi (THYAO, USD): HTTP ' + c2.status);
-        satir.push(t2 || '(boş)');
-      }catch(e){ satir.push('\nFiyat denemesi başarısız: ' + e.message); }
       alert(satir.join('\n'));
     },
     fiyatEkle: () => {
