@@ -183,6 +183,11 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
 .emirsin{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;
   border-top:1px solid var(--cizgi);font-size:13px}
 .emirsin b{font-weight:600}
+.sirasec{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.sirasec button{font-size:12px;padding:4px 10px;border-radius:14px;
+  background:var(--cizgi2);color:var(--mut)}
+.sirasec button:hover{color:var(--ink)}
+.sirasec button.on{background:var(--acik);color:var(--marka);font-weight:500}
 .sbas{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .sbas b{font-size:16px;font-weight:600}
 .sgovde{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
@@ -287,6 +292,7 @@ let AYAR = { url:'', tablo:'', sbUrl:'', sbKey:'', sonHesap:'', tema:'sistem', m
 let kirli = new Set();         // kaydedilecek sayfalar
 let kaydetZaman = null;
 let aktifSayfa = 'ozet';
+let cizilenAnahtar = null;        // son çizimin sayfası; kaydırmayı korumak için
 let fltr = { ay: donemStr(new Date()), tur:'hepsi', etiket:'', hesap:'' };
 const ACIK_KARTLAR = new Set();   // hareketleri açık duran kartlar
 let butceTur = 'gider';           // bütçe ekranında gider mi gelir mi
@@ -1766,7 +1772,9 @@ function portfoyOzet(filtre){
    =================================================================== */
 
 const EMIR_VARSAYILAN = {alisTutar:0, alisDusus:0, satisTutar:0, satisArtis:0};
-let emirSira = '';   // '' | sembol | degisim
+let emirSira = '';   // tablo: '' | sembol | degisim
+let emirAlisSira = 'yakin';    // sütunlar: yakin | degisim | sembol | fiyat | tutar
+let emirSatisSira = 'yakin';
 
 function genelKural(){
   const g = (D.emirKurallari||[]).find(k => !k.sembol || k.sembol === '*');
@@ -2863,19 +2871,37 @@ function gorunumEmirler(){
     </div>`;
   };
 
-  /* Sütun: önce eşiği aşanlar, sonra yolda olanlar — ikisi de yakınlık sırasına göre */
+  /* Sütun. Sıralama kullanıcının seçimine göre; varsayılan eşiğe yakınlık. */
   const sutun = (yon) => {
-    const aralikta = liste.filter(d => d.hazir && (yon === 'alis' ? d.alisAralikta : d.satisAralikta));
-    const sirali = aralikta.sort((a,b) =>
-      (yon === 'alis' ? b.alisOran - a.alisOran : b.satisOran - a.satisOran) ||
-      (yon === 'alis' ? b.dusus - a.dusus : b.artis - a.artis));
-    const tetikSayi = sirali.filter(d => yon === 'alis' ? d.alisTetik : d.satisTetik).length;
     const alisMi = yon === 'alis';
+    const s = alisMi ? emirAlisSira : emirSatisSira;
+    const oranAl = d => say(alisMi ? d.alisOran : d.satisOran);
+    const gitAl  = d => say(alisMi ? d.dusus : d.artis);
+    const tutarAl = d => say(alisMi ? d.alisTutar : d.satisTutarTl);
+
+    const sirali = liste
+      .filter(d => d.hazir && (alisMi ? d.alisAralikta : d.satisAralikta))
+      .sort((a,b) => {
+        if(s === 'sembol') return a.sembol.localeCompare(b.sembol, 'tr');
+        if(s === 'degisim') return gitAl(b) - gitAl(a);
+        if(s === 'tutar')   return tutarAl(b) - tutarAl(a);
+        if(s === 'fiyat')   return say(b.guncel) - say(a.guncel);
+        return (oranAl(b) - oranAl(a)) || (gitAl(b) - gitAl(a));   // yakin
+      });
+    const tetikSayi = sirali.filter(d => alisMi ? d.alisTetik : d.satisTetik).length;
+    const eylem = alisMi ? 'emirAlisSirala' : 'emirSatisSirala';
+
     return `<div>
-      <div class="bas" style="margin:0 0 10px">
+      <div class="bas" style="margin:0 0 8px">
         <span>${alisMi ? 'Alış emirleri' : 'Satış emirleri'}</span>
         ${tetikSayi ? `<span class="rozet ${alisMi?'':'k'}">${tetikSayi} tetiklendi</span>` : ''}
         <span class="etk">${sirali.length} sembol</span>
+      </div>
+      <div class="sirasec">
+        <span class="etk">Sırala</span>
+        ${[['yakin','Eşiğe yakınlık'],['degisim', alisMi?'Düşüş':'Artış'],
+           ['sembol','Sembol'],['fiyat','Fiyat'],['tutar','Tutar']].map(([v,a]) =>
+          `<button data-eylem="${eylem}" data-v="${v}" class="${s===v?'on':''}">${a}</button>`).join('')}
       </div>
       ${sirali.length ? sirali.map(d => emirKarti(d, yon)).join('')
         : `<div class="kart">${bosKutu(alisMi
@@ -4117,7 +4143,15 @@ function ciz(){
   const odak = (o && o.dataset && o.dataset.odak)
     ? {ad: o.dataset.odak, bas: o.selectionStart, son: o.selectionEnd} : null;
 
+  /* Sayfa başına yalnızca gerçekten başka bir sayfaya geçerken dönülür.
+     Otomatik eşitleme ve fiyat güncellemesi de ciz() çağırıyor; bunlarda
+     kaydırma yerinde kalmalı, yoksa liste okurken sayfa sürekli başa atar. */
+  const anahtar = aktifSayfa + '|' + yatSayfa;
+  const ayniYer = cizilenAnahtar === anahtar;
+  const kaydirma = window.scrollY;
+
   $('#ana').innerHTML = serit + g();
+  cizilenAnahtar = anahtar;
   if(typeof dugmeYaz === 'function') dugmeYaz();
   if(AYAR.saltOkunur){
     $$('#ana [data-eylem]').forEach(d => {
@@ -4135,7 +4169,8 @@ function ciz(){
       return;                              // yazarken sayfa başa sarmasın
     }
   }
-  window.scrollTo(0,0);
+  if(ayniYer) window.scrollTo(0, kaydirma);
+  else window.scrollTo(0, 0);
 }
 function yonlendir(){
   if(AYAR.mod === 'supabase' && kurtarmaKontrol()) return;
@@ -4146,7 +4181,8 @@ function yonlendir(){
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
   'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
-  'yatFiltre','yatSayfa','yatAraTemizle','yatSirala','tradeSirala','emirSirala','fiyatSina','fiyatIncele','tradeDisaAktar',
+  'yatFiltre','yatSayfa','yatAraTemizle','yatSirala','tradeSirala','emirSirala',
+  'emirAlisSirala','emirSatisSirala','fiyatSina','fiyatIncele','tradeDisaAktar',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -4257,6 +4293,8 @@ document.addEventListener('click', ev => {
       ciz();
     },
     emirSirala: () => { emirSira = emirSira === el.dataset.v ? '' : el.dataset.v; ciz(); },
+    emirAlisSirala: () => { emirAlisSira = el.dataset.v; ciz(); },
+    emirSatisSirala: () => { emirSatisSira = el.dataset.v; ciz(); },
     yatSayfa: () => { yatSayfa = el.dataset.v; ciz(); },
     yatirimEkle: () => yatirimFormu(),
     yatirimDuzenle: () => yatirimFormu((D.yatirimlar||[]).find(x=>x.id===id)),
