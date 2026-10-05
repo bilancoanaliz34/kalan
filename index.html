@@ -984,14 +984,15 @@ async function fiyatIstek(parametreler){
   const tam = adres + '?' + q.toString();
   const sure = say(parametreler.__sure) || 70000;
 
-  const getir = async (secenekler) => {
+  const getir = async (secenekler, kendiSure) => {
     const iptal = new AbortController();
-    const sayac = setTimeout(() => iptal.abort(), sure);
+    const sayac = setTimeout(() => iptal.abort(), kendiSure || sure);
     let c;
     try{ c = await fetch(tam, {...(secenekler||{}), signal: iptal.signal}); }
     catch(e){
-      const h = new Error(e.name === 'AbortError' ? 'Zaman aşımı' : e.message);
-      h.agHatasi = true; throw h;
+      const asim = e.name === 'AbortError';
+      const h = new Error(asim ? 'Zaman aşımı' : e.message);
+      h.agHatasi = true; h.zamanAsimi = asim; throw h;
     }
     finally{ clearTimeout(sayac); }
     return fiyatYanit(c);
@@ -1005,6 +1006,9 @@ async function fiyatIstek(parametreler){
         'Authorization': 'Bearer ' + OTURUM.access_token}});
     }catch(e){
       if(!e.agHatasi) throw e;      // sunucu yanıt verdi ama hata döndü
+      // Zaman aşımı bir yetki sorunu değil; başlıksız denemeyi tekrarlamanın
+      // anlamı yok, süreyi ikiye katlamış oluruz.
+      if(e.zamanAsimi) throw e;
       agHatasi = e;
     }
   }
@@ -1060,34 +1064,69 @@ function gruplara(dizi, boy){
   return g;
 }
 
+let FIYAT_SURE = 28000;     // bir grup en çok bu kadar bekler, sonra sıradakine geçilir
+let FIYAT_ESZAMAN = 3;      // aynı anda kaç grup istenir
+let FIYAT_GRUP = {bist:6, doviz:6, fon:3};
+
 let fiyatAliniyor = false;
 let fiyatIlerleme = '';
+let fiyatIptal = false;
 
-/* Fiyat düğmelerini güncel duruma göre yazar; her çizimden sonra çağrılır */
+/* Fiyat düğmelerini güncel duruma göre yazar; her çizimden sonra çağrılır.
+   Alım sürerken düğme kapanmaz: aynı düğmeye basınca iş durdurulur. */
 function dugmeYaz(){
   $$('[data-eylem="fiyatYenile"]').forEach(d => {
     if(fiyatAliniyor){
       d.dataset.eski = d.dataset.eski || d.innerHTML;
-      d.innerHTML = kacir(fiyatIlerleme || 'Alınıyor…');
-      d.disabled = true;
+      d.innerHTML = kacir((fiyatIlerleme || 'Alınıyor…') + (fiyatIptal ? '' : ' · durdur'));
+      d.disabled = false;
+      d.title = 'Durdurmak için tıkla';
     } else if(d.dataset.eski){
       d.innerHTML = d.dataset.eski;
       delete d.dataset.eski;
       d.disabled = false;
+      d.removeAttribute('title');
     }
   });
 }
 
+/* Bir grubu ister, gelen fiyatları veriye işler. Hata atmaz; sonuç döndürür. */
+async function fiyatGrubuAl(is, simdi){
+  const semboller = [];
+  Object.values(is).forEach(v => String(v).split(',').forEach(x => x && semboller.push(x)));
+  try{
+    const j = await fiyatIstek({...is, __sure: FIYAT_SURE});
+    if(!j || !j.ok) throw new Error((j && j.hata) || 'Servis yanıt vermedi');
+    const v = j.veri || {};
+    let gelen = 0;
+    Object.keys(v).forEach(kod => {
+      const g = v[kod];
+      if(!(say(g.fiyat) > 0)) return;
+      const eski = (D.fiyatlar||[]).find(f => f.sembol === kod) || {};
+      D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== kod);
+      D.fiyatlar.push({sembol:kod, tur:g.tur || eski.tur || 'elle', fiyat: say(g.fiyat),
+        guncelleme: g.tarih || simdi.slice(0,10), zaman: simdi, ad: g.ad || eski.ad || ''});
+      gelen++;
+    });
+    if(gelen){ isaretle('fiyatlar'); ciz(); }   // gelen sonuç hemen ekrana yansır
+    return {gelen, eksik: (j.eksik || []).slice(), hata: ''};
+  }catch(e){
+    return {gelen: 0, eksik: semboller, hata: e.message};
+  }
+}
+
 async function fiyatlariTazele({sessiz=false}={}){
-  if(fiyatAliniyor){ if(!sessiz) bildir('Fiyat güncellemesi zaten sürüyor.'); return; }
+  if(fiyatAliniyor){
+    fiyatIptal = true;                          // ikinci tıklama: durdur
+    fiyatIlerleme = 'Durduruluyor…';
+    dugmeYaz(); durumYaz(fiyatIlerleme);
+    return;
+  }
   const s = izlenenSemboller();
-  const piyasa = gruplara(s.bist, 8);
-  const dovizG = gruplara(s.doviz.filter(x => x !== 'TRY'), 8);
-  const fonG = gruplara(s.fon, 5);     // TEFAS daha yavaş
   const isler = [];
-  piyasa.forEach(g => isler.push({bist:g.join(',')}));
-  dovizG.forEach(g => isler.push({doviz:g.join(',')}));
-  fonG.forEach(g => isler.push({fon:g.join(',')}));
+  gruplara(s.bist, FIYAT_GRUP.bist).forEach(g => isler.push({bist:g.join(',')}));
+  gruplara(s.doviz.filter(x => x !== 'TRY'), FIYAT_GRUP.doviz).forEach(g => isler.push({doviz:g.join(',')}));
+  gruplara(s.fon, FIYAT_GRUP.fon).forEach(g => isler.push({fon:g.join(',')}));
 
   if(!isler.length){
     if(!sessiz) bildir('İzlenecek sembol yok. Önce bir işlem ya da pozisyon ekle.');
@@ -1095,47 +1134,89 @@ async function fiyatlariTazele({sessiz=false}={}){
   }
 
   fiyatAliniyor = true;
+  fiyatIptal = false;
   fiyatIlerleme = '';
-  // Düğmeler her çizimde yeniden oluştuğu için her seferinde yeniden bulunur
-  const ilerleme = (i) => {
-    fiyatIlerleme = isler.length > 1 ? `Alınıyor ${i}/${isler.length}` : 'Alınıyor…';
+
+  const simdi = new Date().toISOString();
+  let gelen = 0, bitti = 0;
+  let eksik = [];
+  const hatalar = [];
+
+  let etiket = 'Alınıyor';
+  const ilerleme = (toplam) => {
+    fiyatIlerleme = toplam > 1
+      ? `${etiket} ${Math.min(bitti + 1, toplam)}/${toplam}` : etiket + '…';
     dugmeYaz();
     durumYaz(fiyatIlerleme);
   };
 
-  const simdi = new Date().toISOString();
-  let gelen = 0;
-  const eksik = [];
-  const hatalar = [];
+  /* Bir turda sıradaki grupları paralel yürütür; takılan grup diğerlerini
+     bekletmez, zaman aşımına uğrayıp sıradakine geçilir. */
+  async function turuYurut(liste){
+    const sira = liste.slice();
+    const kalan = [];
+    bitti = 0;
+    ilerleme(sira.length);
+    const toplam = sira.length;
+    const isci = async () => {
+      while(sira.length && !fiyatIptal){
+        const is = sira.shift();
+        const sonuc = await fiyatGrubuAl(is, simdi);
+        gelen += sonuc.gelen;
+        if(sonuc.hata){ hatalar.push(sonuc.hata); kalan.push(is); }
+        else if(sonuc.eksik.length) kalan.push({...is, __eksik: sonuc.eksik});
+        bitti++;
+        ilerleme(toplam);
+      }
+    };
+    await Promise.all(Array.from({length: Math.min(FIYAT_ESZAMAN, sira.length)}, isci));
+    sira.forEach(is => kalan.push(is));        // durdurulduysa sıradakiler
+    return kalan;
+  }
 
   try{
-    for(let i = 0; i < isler.length; i++){
-      ilerleme(i + 1);
-      try{
-        const j = await fiyatIstek({...isler[i], __sure: 70000});
-        if(!j || !j.ok) throw new Error((j && j.hata) || 'Servis yanıt vermedi');
-        const v = j.veri || {};
-        Object.keys(v).forEach(kod => {
-          const g = v[kod];
-          const eski = (D.fiyatlar||[]).find(f => f.sembol === kod) || {};
-          D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== kod);
-          D.fiyatlar.push({sembol:kod, tur:g.tur || eski.tur || 'elle', fiyat: say(g.fiyat),
-            guncelleme: g.tarih || simdi.slice(0,10), zaman: simdi, ad: g.ad || eski.ad || ''});
-          gelen++;
+    let kalan = await turuYurut(isler);
+
+    /* İkinci tur: yalnızca gelmeyen semboller, daha küçük gruplarla.
+       Dış kaynak anlık hata verdiyse çoğu bu turda gelir. */
+    if(kalan.length && !fiyatIptal){
+      const tekrar = [];
+      kalan.forEach(is => {
+        const tp = is.bist !== undefined ? 'bist' : (is.doviz !== undefined ? 'doviz' : 'fon');
+        const semboller = is.__eksik || String(is[tp] || '').split(',').filter(Boolean);
+        gruplara(semboller, tp === 'fon' ? 2 : 3).forEach(g => {
+          if(g.length) tekrar.push({[tp]: g.join(',')});
         });
-        (j.eksik || []).forEach(x => eksik.push(x));
-        isaretle('fiyatlar');
-        ciz();                       // her grup sonrası ekranı tazele
-      }catch(e){
-        hatalar.push(e.message);
-        Object.values(isler[i]).forEach(v => String(v).split(',').forEach(x => x && eksik.push(x)));
+      });
+      if(tekrar.length){
+        etiket = 'Tekrar';
+        const son = await turuYurut(tekrar);
+        son.forEach(is => {
+          const t = is.bist !== undefined ? 'bist' : (is.doviz !== undefined ? 'doviz' : 'fon');
+          (is.__eksik || String(is[t] || '').split(',')).forEach(x => x && eksik.push(x));
+        });
       }
+    } else {
+      kalan.forEach(is => {
+        const t = is.bist !== undefined ? 'bist' : (is.doviz !== undefined ? 'doviz' : 'fon');
+        (is.__eksik || String(is[t] || '').split(',')).forEach(x => x && eksik.push(x));
+      });
     }
   } finally {
     fiyatAliniyor = false;
     fiyatIlerleme = '';
+    const durduruldu = fiyatIptal;
+    fiyatIptal = false;
     ciz();
+    if(durduruldu){
+      durumYaz(gelen + ' fiyat güncellendi · durduruldu', gelen ? 'ok' : 'hata');
+      if(!sessiz) bildir('Fiyat güncellemesi durduruldu. ' + gelen + ' fiyat geldi.');
+      return;
+    }
   }
+
+  eksik = [...new Set(eksik.filter(x => !(D.fiyatlar||[]).some(
+    f => f.sembol === x && f.zaman === simdi)))];
 
   if(gelen) durumYaz(gelen + ' fiyat güncellendi', 'ok');
   else durumYaz('Fiyat alınamadı', 'hata');
@@ -4056,24 +4137,39 @@ document.addEventListener('click', ev => {
       const eksikD = sem.doviz.filter(x => x !== 'TRY' && !(fiyatBul(x) > 0));
       if(!eksikB.length && !eksikF.length && !eksikD.length)
         return bildir('Tüm sembollerin fiyatı var.');
-      durumYaz('Eksikler inceleniyor…');
+      // İnceleme de gruplara bölünür: tek büyük istek zaman aşımına uğrar
+      const isler = [];
+      gruplara(eksikB, 4).forEach(g => isler.push({bist:g.join(',')}));
+      gruplara(eksikD, 4).forEach(g => isler.push({doviz:g.join(',')}));
+      gruplara(eksikF, 2).forEach(g => isler.push({fon:g.join(',')}));
+      const t = {}, gelenler = [], hatalar = [];
+      const simdi = new Date().toISOString();
       try{
-        const j = await fiyatIstek({bist:eksikB.join(','), fon:eksikF.join(','),
-          doviz:eksikD.join(','), tani:'1'});
-        const t = (j && j.tani) || {};
-        const satir = ['Eksik fiyatlar inceleniyor — her sembol için denenen kaynaklar:', ''];
-        Object.keys(t).forEach(k => satir.push(k + ': ' + (t[k]||[]).join('  →  ')));
-        if(j && j.veri && Object.keys(j.veri).length){
-          satir.push('', 'Bu denemede gelenler: ' + Object.keys(j.veri).join(', '));
-          const simdi = new Date().toISOString();
-          Object.keys(j.veri).forEach(kod => {
-            const g = j.veri[kod];
-            D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== kod);
-            D.fiyatlar.push({sembol:kod, tur:g.tur||'elle', fiyat:say(g.fiyat),
-              guncelleme:g.tarih||simdi.slice(0,10), zaman:simdi, ad:g.ad||''});
-          });
-          isaretle('fiyatlar'); ciz();
+        for(let i = 0; i < isler.length; i++){
+          durumYaz(`Eksikler inceleniyor ${i+1}/${isler.length}`);
+          try{
+            const j = await fiyatIstek({...isler[i], tani:'1', __sure: FIYAT_SURE});
+            Object.assign(t, (j && j.tani) || {});
+            const v = (j && j.veri) || {};
+            Object.keys(v).forEach(kod => {
+              const g = v[kod];
+              if(!(say(g.fiyat) > 0)) return;
+              D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== kod);
+              D.fiyatlar.push({sembol:kod, tur:g.tur||'elle', fiyat:say(g.fiyat),
+                guncelleme:g.tarih||simdi.slice(0,10), zaman:simdi, ad:g.ad||''});
+              gelenler.push(kod);
+            });
+          }catch(e){
+            hatalar.push(e.message);
+            Object.values(isler[i]).forEach(v => String(v).split(',').forEach(
+              x => { if(x) t[x] = ['istek başarısız: ' + e.message]; }));
+          }
         }
+        if(gelenler.length){ isaretle('fiyatlar'); ciz(); }
+        const satir = ['Eksik fiyatlar incelendi — her sembol için denenen kaynaklar:', ''];
+        Object.keys(t).sort().forEach(k => satir.push(k + ': ' + (t[k]||[]).join('  →  ')));
+        if(gelenler.length) satir.push('', 'Bu denemede gelenler: ' + gelenler.join(', '));
+        if(hatalar.length) satir.push('', 'Başarısız istek: ' + [...new Set(hatalar)].join(' · '));
         durumYaz('İnceleme bitti', 'ok');
         alert(satir.join('\n'));
       }catch(e){
