@@ -63,6 +63,8 @@ a{color:var(--marka)}
 .orta{font-size:22px;font-weight:600;letter-spacing:-.6px}
 .rozet{display:inline-block;font-size:12px;font-weight:500;background:var(--acik);color:var(--marka);padding:3px 9px;border-radius:20px}
 .rozet.s{background:var(--sariZ);color:var(--sariY)}
+.uyari{background:var(--sariZ);color:var(--sariY);border-radius:10px;
+  padding:10px 12px;font-size:13px;line-height:1.5}
 .rozet.k{background:var(--kirmiziZ);color:var(--kirmiziY)}
 .rozet.n{background:var(--cizgi2);color:var(--mut)}
 .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:12px;
@@ -108,6 +110,26 @@ td.sag,th.sag{text-align:right}
 .sek2{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
 .sek2 button{font-size:13px;padding:7px 13px;border-radius:18px;background:var(--cizgi2);color:var(--mut)}
 .sek2 button.on{background:var(--ink);color:var(--bg);font-weight:500}
+.arakutu{display:inline-flex;align-items:center;gap:6px;background:var(--cizgi2);
+  border-radius:18px;padding:0 10px;height:30px}
+.arakutu svg{width:15px;height:15px;flex:none;opacity:.55}
+.arakutu svg .ic{fill:none;stroke:currentColor;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.arakutu input{border:0;background:none;outline:none;font:inherit;font-size:13px;
+  color:var(--ink);width:140px;padding:0}
+.arakutu input::placeholder{color:var(--mut)}
+.arakutu input::-webkit-search-cancel-button{display:none}
+.arakutu button{background:none;padding:0 2px;font-size:17px;line-height:1;
+  color:var(--mut);border-radius:0}
+.arakutu button:hover{color:var(--ink)}
+.arabos{padding:18px;text-align:center;color:var(--mut);font-size:14px}
+.arasag{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media(max-width:720px){
+  .arasag{margin-left:0;width:100%;margin-top:4px}
+  .arakutu{flex:1}
+  .arakutu input{width:100%;min-width:0}
+  .arazaman{flex-basis:100%}
+}
 .liste .oge{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--cizgi2)}
 .liste .oge:last-child{border-bottom:0}
 .liste .oge .t{flex:1;min-width:0}
@@ -141,6 +163,26 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
 .sinyal{background:var(--yzy);border:1px solid var(--cizgi);border-left:4px solid var(--marka);
   border-radius:0 14px 14px 0;padding:14px 18px;margin-bottom:10px;box-shadow:var(--golge)}
 .sinyal.satis{border-left-color:var(--kirmizi)}
+
+/* Emirler: solda alış, sağda satış */
+.ikili{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media(max-width:900px){.ikili{grid-template-columns:1fr;gap:10px}}
+.emirk{background:var(--yzy);border:1px solid var(--cizgi);border-radius:14px;
+  padding:12px 14px;margin-bottom:10px;box-shadow:var(--golge)}
+.emirk.tetik{background:var(--acik);border-color:var(--marka2)}
+.emirk.satis.tetik{background:var(--kirmiziZ);border-color:var(--kirmizi)}
+.emirb{display:flex;align-items:center;gap:8px;margin-bottom:9px;min-width:0}
+.emirb b{font-size:15.5px;font-weight:600;flex:none}
+.emircubuk{height:6px;border-radius:4px;background:var(--cizgi2);overflow:hidden;margin-bottom:10px}
+.emirk.tetik .emircubuk{background:var(--cizgi)}
+.emircubuk i{display:block;height:100%;border-radius:4px;background:var(--marka2)}
+.emirk.satis .emircubuk i{background:var(--kirmizi)}
+.emirsat{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--mut);
+  font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.emirsat b{color:var(--ink);font-weight:600}
+.emirsin{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;
+  border-top:1px solid var(--cizgi);font-size:13px}
+.emirsin b{font-weight:600}
 .sbas{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .sbas b{font-size:16px;font-weight:600}
 .sgovde{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
@@ -212,6 +254,7 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
   <symbol id="s-cog" viewBox="0 0 24 24"><circle class="ic" cx="12" cy="12" r="3"/><path class="ic" d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.5 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 13.6H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9.4a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></symbol>
   <symbol id="s-plus" viewBox="0 0 24 24"><path class="ic" d="M12 5v14M5 12h14" style="stroke-width:2.2"/></symbol>
   <symbol id="s-sync" viewBox="0 0 24 24"><path class="ic" d="M20 11a8 8 0 0 0-14-4M4 13a8 8 0 0 0 14 4"/><path class="ic" d="M4 5v5h5M20 19v-5h-5"/></symbol>
+  <symbol id="s-ara" viewBox="0 0 24 24"><circle class="ic" cx="11" cy="11" r="6.5"/><path class="ic" d="M16 16l4.5 4.5"/></symbol>
 </svg>
 <script>
 /* ===================================================================
@@ -249,6 +292,7 @@ const ACIK_KARTLAR = new Set();   // hareketleri açık duran kartlar
 let butceTur = 'gider';           // bütçe ekranında gider mi gelir mi
 let yatFiltre = 'hepsi';          // yatırım ekranı: hepsi | hisse | fon
 let yatSayfa = 'pozisyon';        // pozisyon | islem | kapanan
+let yatAra = '';                  // sembol / ad araması, üç sekmede de geçerli
 let yatSira = {alan:'deger', yon:-1};     // pozisyon tablosu sıralaması
 let tradeSira = {alan:'tarih', yon:-1};   // işlem geçmişi sıralaması
 
@@ -1582,14 +1626,26 @@ function tradeKur(t){
 }
 
 /* Bir sembolün tüm hareketlerini sırayla işler */
+/* Aynı gün içindeki işlemlerin işlenme sırası. Gün içinde alıp satmak sık
+   görülür; kayıt sırası ne olursa olsun önce alış ve pay değişiklikleri,
+   sonra satış, en son temettü işlenir. Yoksa satış "elde yok" sayılıp
+   sessizce atlanır ve adet olduğundan fazla görünür. */
+const TRADE_SIRA_GUN = {alis:0, bedelsiz:1, bolunme:1, satis:2, temettu:3};
+
 function pozisyonHesapla(sembol){
   const hareketler = (D.trades||[])
     .filter(t => String(t.sembol||'').toUpperCase() === String(sembol).toUpperCase())
-    .sort((a,b) => a.tarih === b.tarih ? (a.id < b.id ? -1 : 1) : (a.tarih < b.tarih ? -1 : 1));
+    .sort((a,b) => {
+      if(a.tarih !== b.tarih) return a.tarih < b.tarih ? -1 : 1;
+      const x = TRADE_SIRA_GUN[a.yon] ?? 9, y = TRADE_SIRA_GUN[b.yon] ?? 9;
+      if(x !== y) return x - y;
+      return a.id < b.id ? -1 : 1;
+    });
 
   let adet = 0, maliyet = 0, maliyetUsd = 0;
   let realizeTl = 0, realizeUsd = 0, temettuTl = 0, temettuUsd = 0;
   let ad = '', tur = 'hisse';
+  let fazlaSatis = 0;                      // elde olandan fazla satılan adet
   const kapanan = [];
 
   hareketler.forEach(t => {
@@ -1604,6 +1660,7 @@ function pozisyonHesapla(sembol){
       maliyetUsd += (a * f) / k;
     }
     else if(t.yon === 'satis'){
+      if(a > adet + 0.0000001) fazlaSatis += a - Math.max(adet, 0);
       if(adet <= 0) return;
       const sat = Math.min(a, adet);
       const birim = maliyet / adet;
@@ -1660,6 +1717,7 @@ function pozisyonHesapla(sembol){
     toplamKzTl: (deger - maliyet) + realizeTl,
     toplamKzUsd: (deger / usdKuru - maliyetUsd) + realizeUsd,
     kapanan, hareketSayisi: hareketler.length,
+    fazlaSatis,                            // 0'dan büyükse kayıt eksik demektir
     fiyatVar: fiyat > 0
   };
 }
@@ -1751,16 +1809,24 @@ function emirDurumu(sembol){
   if(!d.hazir) return d;
 
   d.degisim = guncel / d.referans - 1;
+  d.dusus  = -d.degisim;        // pozitifse fiyat son işlemin altında
+  d.artis  =  d.degisim;        // pozitifse üstünde
 
   if(say(k.alisTutar) > 0 && say(k.alisDusus) > 0){
-    d.alisHedef = d.referans * (1 - say(k.alisDusus));
+    d.alisEsik = say(k.alisDusus);
+    d.alisHedef = d.referans * (1 - d.alisEsik);
     d.alisTetik = guncel <= d.alisHedef + 0.0000001;
     d.alisAdet = Math.ceil(say(k.alisTutar) / guncel);
     d.alisTutar = d.alisAdet * guncel;
     d.alisUzaklik = guncel > 0 ? d.alisHedef / guncel - 1 : 0;  // hedefe kalan oran
+    // Eşiğe doğru yol alınan kısım: 0 = hiç düşmemiş, 1 = eşiğe ulaşmış
+    d.alisOran = Math.max(0, Math.min(d.dusus / d.alisEsik, 1));
+    // Emir sayfasında görünme koşulu: düşüş 0 ile eşik arasında ya da eşiği aşmış
+    d.alisAralikta = d.dusus >= -0.0000001;
   }
   if(say(k.satisTutar) > 0 && say(k.satisArtis) > 0){
-    d.satisHedef = d.referans * (1 + say(k.satisArtis));
+    d.satisEsik = say(k.satisArtis);
+    d.satisHedef = d.referans * (1 + d.satisEsik);
     d.satisTetikFiyat = guncel >= d.satisHedef - 0.0000001;
     d.satisAdetHam = Math.ceil(say(k.satisTutar) / guncel);
     d.satisAdet = Math.min(d.satisAdetHam, Math.floor(p.adet));
@@ -1768,6 +1834,8 @@ function emirDurumu(sembol){
     d.satisTutarTl = d.satisAdet * guncel;
     d.satisTetik = d.satisTetikFiyat && d.satisAdet > 0;
     d.satisUzaklik = guncel > 0 ? d.satisHedef / guncel - 1 : 0;
+    d.satisOran = Math.max(0, Math.min(d.artis / d.satisEsik, 1));
+    d.satisAralikta = d.artis >= -0.0000001 && p.adet > 0;
   }
   return d;
 }
@@ -2520,9 +2588,17 @@ function gorunumYatirim(){
     <span style="width:14px"></span>
     ${[['pozisyon','Pozisyonlar'],['islem','İşlem geçmişi'],['kapanan','Kapanan işlemler']].map(([v,a]) =>
       `<button data-eylem="yatSayfa" data-v="${v}" class="${yatSayfa===v?'on':''}">${a}</button>`).join('')}
-    <span class="etk" style="margin-left:auto;align-self:center">
+    <span class="arasag">
+      <span class="arakutu">
+        <svg><use href="#s-ara"/></svg>
+        <input type="search" data-odak="yatAra" data-giris="yatAra" value="${kacir(yatAra)}"
+          placeholder="Hisse ara" autocomplete="off" spellcheck="false">
+        ${yatAra ? `<button type="button" data-eylem="yatAraTemizle" title="Aramayı temizle">×</button>` : ''}
+      </span>
+      <span class="etk arazaman">
       ${fiyatZaman ? 'Fiyatlar ' + new Date(fiyatZaman).toLocaleString('tr-TR',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) + ' itibarıyla'
         : 'Fiyat alınmadı'}</span>
+    </span>
   </div>
 
   ${(sayfalar[yatSayfa] || sayfalar.pozisyon)()}`;
@@ -2558,6 +2634,29 @@ function digerTablosu(){
   </div>`;
 }
 
+/* Sembol ya da ad araması. Aramada Türkçe harfler sadeleştirilir: "i" ile
+   "ı", "s" ile "ş" aynı sayılır. Böylece INVEO'yu ararken "inveo" yazmak
+   yetiyor — klavyede noktasız ı'ya geçmek gerekmiyor. */
+const ARA_HARF = {'İ':'i','I':'i','ı':'i','Ş':'s','ş':'s','Ğ':'g','ğ':'g',
+  'Ü':'u','ü':'u','Ö':'o','ö':'o','Ç':'c','ç':'c','Â':'a','â':'a','Î':'i','î':'i','Û':'u','û':'u'};
+function kucult(s){
+  return String(s||'').replace(/[İIıŞşĞğÜüÖöÇçÂâÎîÛû]/g, c => ARA_HARF[c]).toLowerCase();
+}
+function araUyar(sembol, ad){
+  const q = kucult(yatAra).trim();
+  if(!q) return true;
+  return kucult(sembol).includes(q) || kucult(ad).includes(q);
+}
+
+/* Bir sembolün adını işlem kayıtlarından ya da pozisyon listesinden bulur */
+function sembolAdi(sembol){
+  const t = (D.trades||[]).find(x =>
+    kucult(x.sembol) === kucult(sembol) && x.ad);
+  if(t) return t.ad;
+  const f = (D.fiyatlar||[]).find(x => kucult(x.sembol) === kucult(sembol) && x.ad);
+  return f ? f.ad : '';
+}
+
 /* Metinler Türkçe alfabeye göre, sayılar büyüklüğe göre sıralanır */
 function sirala(dizi, alan, yon){
   return dizi.slice().sort((a, b) => {
@@ -2580,16 +2679,29 @@ function yuzde(o){
 }
 
 function pozisyonTablosu(t){
+  // Kapanmış pozisyonlardaki fazla satış uyarısı tablo boşken de görünmeli
+  const fazla = t.pozisyonlar.filter(p => p.fazlaSatis > 0 && araUyar(p.sembol, p.ad));
+  const fazlaKutu = fazla.length ? `<p class="uyari" style="margin-top:10px">
+      <b>${fazla.map(p => kacir(p.sembol) + ' (' +
+        say(p.fazlaSatis).toLocaleString('tr-TR',{maximumFractionDigits:4}) + ' adet)').join(', ')}</b>
+      için satışlar elindekinden fazla görünüyor. Fazla satılan kısım hesaba katılmadı —
+      büyük ihtimalle bir alış kaydı eksik ya da tarihi yanlış girilmiş.</p>` : '';
+
   if(!t.acik.length) return `<div class="kart">${bosKutu(
-    'Açık pozisyon yok. Sağ üstten bir alış işlemi ekleyerek başlayabilirsin.')}</div>`;
+    'Açık pozisyon yok. Sağ üstten bir alış işlemi ekleyerek başlayabilirsin.')}${fazlaKutu}</div>`;
+  const acik = t.acik.filter(p => araUyar(p.sembol, p.ad));
+  if(!acik.length) return `<div class="kart"><p class="arabos">
+    “${kacir(yatAra)}” ile eşleşen pozisyon yok.</p>${fazlaKutu}</div>`;
   return `<div class="kart"><div class="bkaydir"><table style="min-width:900px">
     <tr>${siraBaslik(yatSira,'Sembol','sembol')}${siraBaslik(yatSira,'Adet','adet',1)}
       ${siraBaslik(yatSira,'Maliyet','birim',1)}${siraBaslik(yatSira,'Temettü','temettuTl',1)}
       ${siraBaslik(yatSira,'Fiyat','fiyat',1)}${siraBaslik(yatSira,'Değer','deger',1)}
       ${siraBaslik(yatSira,'K/Z (TL)','acikKzTl',1)}${siraBaslik(yatSira,'K/Z (USD)','acikKzUsd',1)}<th></th></tr>
-    ${sirala(t.acik, yatSira.alan, yatSira.yon).map(p => `<tr${p.fiyat>0?'':' style="opacity:.6"'}>
+    ${sirala(acik, yatSira.alan, yatSira.yon).map(p => `<tr${p.fiyat>0?'':' style="opacity:.6"'}>
       <td><b>${kacir(p.sembol)}</b>
         <span class="rozet n" style="margin-left:6px">${p.tur==='fon'?'Fon':'Hisse'}</span>
+        ${p.fazlaSatis > 0 ? `<span class="rozet s" style="margin-left:4px"
+          title="Satışlar elde olandan ${say(p.fazlaSatis).toLocaleString('tr-TR',{maximumFractionDigits:4})} adet fazla. Eksik bir alış kaydı olabilir.">kayıt eksik</span>` : ''}
         ${p.ad?`<br><small class="etk">${kacir(p.ad)}</small>`:''}</td>
       <td class="sag sayi">${say(p.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</td>
       <td class="sag sayi">${para(p.birim,'TRY',p.tur==='fon'?4:2)}
@@ -2610,28 +2722,42 @@ function pozisyonTablosu(t){
         <button class="btn ikincil ince" data-eylem="tradeEkle" data-sembol="${kacir(p.sembol)}" data-yon="alis">Al</button>
         <button class="btn ikincil ince" data-eylem="tradeEkle" data-sembol="${kacir(p.sembol)}" data-yon="satis">Sat</button></td>
     </tr>`).join('')}
-    <tr style="border-top:2px solid var(--cizgi)">
-      <td><b>Toplam</b></td><td></td><td class="sag sayi">${para(t.maliyet)}</td>
-      <td class="sag sayi ${t.temettuTl>0?'art':''}">${t.temettuTl>0?para(t.temettuTl):''}</td><td></td>
-      <td class="sag sayi"><b>${para(t.deger)}</b></td>
-      <td class="sag sayi ${t.acikKzTl<0?'eks':'art'}"><b>${t.acikKzTl>0?'+':''}${para(t.acikKzTl)}</b></td>
-      <td class="sag sayi ${t.acikKzUsd<0?'eks':'art'}"><b>${t.acikKzUsd>0?'+':''}${para(t.acikKzUsd,'USD')}</b></td>
-      <td></td></tr>
+    ${(() => {
+      // Arama varsa toplam da yalnızca görünen satırları kapsar
+      const g = acik.filter(p => p.fiyat > 0);
+      const topla = (alan) => g.reduce((a,p) => a + say(p[alan]), 0);
+      const mal = topla('maliyet'), deg = topla('deger');
+      const kzTl = deg - mal, kzUsd = topla('degerUsd') - topla('maliyetUsd');
+      const tem = acik.reduce((a,p) => a + say(p.temettuTl), 0);
+      return `<tr style="border-top:2px solid var(--cizgi)">
+      <td><b>Toplam</b>${yatAra ? `<br><small class="etk">${acik.length} kayıt · arama sonucu</small>` : ''}</td>
+      <td></td><td class="sag sayi">${para(mal)}</td>
+      <td class="sag sayi ${tem>0?'art':''}">${tem>0?para(tem):''}</td><td></td>
+      <td class="sag sayi"><b>${para(deg)}</b></td>
+      <td class="sag sayi ${kzTl<0?'eks':'art'}"><b>${kzTl>0?'+':''}${para(kzTl)}</b></td>
+      <td class="sag sayi ${kzUsd<0?'eks':'art'}"><b>${kzUsd>0?'+':''}${para(kzUsd,'USD')}</b></td>
+      <td></td></tr>`;
+    })()}
   </table></div>
-  ${t.fiyatsiz.length ? `<p class="etk" style="margin-top:10px">
-    ${t.fiyatsiz.map(p => kacir(p.sembol)).join(', ')} için fiyat yok, bu yüzden toplamlara
+  ${fazlaKutu}
+  ${t.fiyatsiz.filter(p => araUyar(p.sembol, p.ad)).length ? `<p class="etk" style="margin-top:10px">
+    ${t.fiyatsiz.filter(p => araUyar(p.sembol, p.ad)).map(p => kacir(p.sembol)).join(', ')} için fiyat yok, bu yüzden toplamlara
     katılmadı. “Fiyatları güncelle” ile çekebilir ya da Ayarlar'dan elle girebilirsin.</p>` : ''}</div>`;
 }
 
 function tradeGecmisi(){
   let liste = (D.trades||[]).slice();
   if(yatFiltre !== 'hepsi') liste = liste.filter(x => (x.tur||'hisse') === yatFiltre);
+  if(kucult(yatAra).trim())
+    liste = liste.filter(x => araUyar(x.sembol, x.ad || sembolAdi(x.sembol)));
   if(tradeSira.alan === 'tarih')
     liste.sort((a,b) => a.tarih === b.tarih
       ? (a.id < b.id ? -tradeSira.yon : tradeSira.yon)
       : (a.tarih < b.tarih ? -tradeSira.yon : tradeSira.yon));
   else liste = sirala(liste, tradeSira.alan, tradeSira.yon);
-  if(!liste.length) return `<div class="kart">${bosKutu('Kayıtlı işlem yok.')}</div>`;
+  if(!liste.length) return `<div class="kart">${yatAra
+    ? `<p class="arabos">“${kacir(yatAra)}” ile eşleşen işlem yok.</p>`
+    : bosKutu('Kayıtlı işlem yok.')}</div>`;
   return `<div class="kart"><div class="bkaydir"><table style="min-width:760px">
     <tr>${siraBaslik(tradeSira,'Tarih','tarih')}${siraBaslik(tradeSira,'Sembol','sembol')}
       ${siraBaslik(tradeSira,'İşlem','yon')}${siraBaslik(tradeSira,'Adet','adet',1)}
@@ -2662,8 +2788,11 @@ function tradeGecmisi(){
 function kapananTablosu(t){
   if(!t.kapanan.length) return `<div class="kart">${bosKutu(
     'Henüz kapanmış işlem yok. Bir satış girdiğinde gerçekleşen kâr/zarar burada listelenir.')}</div>`;
+  const kapanan = t.kapanan.filter(k => araUyar(k.sembol, k.ad));
+  if(!kapanan.length) return `<div class="kart"><p class="arabos">
+    “${kacir(yatAra)}” ile eşleşen kapanmış işlem yok.</p></div>`;
   const yillar = {};
-  t.kapanan.forEach(k => {
+  kapanan.forEach(k => {
     const y = String(k.tarih).slice(0,4);
     (yillar[y] = yillar[y] || []).push(k);
   });
@@ -2699,31 +2828,60 @@ function gorunumEmirler(){
   const liste = emirListesi();
   const g = genelKural();
   const tetik = liste.filter(d => d.alisTetik || d.satisTetik);
-  const izlenen = liste.filter(d => !(d.alisTetik || d.satisTetik));
   const yzd = o => (say(o) * 100).toFixed(1).replace('.', ',') + '%';
 
-  const sinyalKarti = d => {
-    const satirlar = [];
-    if(d.alisTetik) satirlar.push({yon:'alis', hedef:d.alisHedef, adet:d.alisAdet, tutar:d.alisTutar});
-    if(d.satisTetik) satirlar.push({yon:'satis', hedef:d.satisHedef, adet:d.satisAdet, tutar:d.satisTutarTl});
-    return satirlar.map(x => `<div class="sinyal ${x.yon}">
-      <div class="sbas">
-        <span class="rozet ${x.yon==='alis'?'':'k'}">${x.yon==='alis'?'ALIŞ':'SATIŞ'}</span>
+  /* Bir sütunun kartı. yon = alis | satis
+     Eşiğe ulaşanlar dolgulu, yolda olanlar sade gösterilir. */
+  const emirKarti = (d, yon) => {
+    const alisMi = yon === 'alis';
+    const tetik = alisMi ? d.alisTetik : d.satisTetik;
+    const esik  = alisMi ? d.alisEsik : d.satisEsik;
+    const git   = alisMi ? d.dusus : d.artis;       // kat edilen oran
+    const oran  = alisMi ? d.alisOran : d.satisOran;
+    const hedef = alisMi ? d.alisHedef : d.satisHedef;
+    const adet  = alisMi ? d.alisAdet : d.satisAdet;
+    const tutar = alisMi ? d.alisTutar : d.satisTutarTl;
+    const bas   = d.tur === 'fon' ? 4 : 2;
+    const kalan = Math.max(0, esik - git);
+    return `<div class="emirk ${yon}${tetik ? ' tetik' : ''}">
+      <div class="emirb">
         <b>${kacir(d.sembol)}</b>
-        ${d.ad?`<span class="etk">${kacir(d.ad)}</span>`:''}
-        <span class="etk" style="flex:1;text-align:right">
-          son işlem ${para(d.referans,'TRY',d.tur==='fon'?4:2)} · ${trTarih(d.referansTarih)}</span>
+        ${d.ad ? `<span class="etk" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${kacir(d.ad)}</span>` : '<span style="flex:1"></span>'}
+        <span class="rozet ${tetik ? (alisMi ? '' : 'k') : 'n'}">${
+          tetik ? (alisMi ? '−' : '+') + yzd(Math.abs(git)) : '%' + (say(kalan)*100).toFixed(1).replace('.',',') + ' kaldı'}</span>
       </div>
-      <div class="sgovde">
-        <div><p class="etk">Güncel fiyat</p><p class="orta sayi">${para(d.guncel,'TRY',d.tur==='fon'?4:2)}</p>
-          <p class="etk sayi ${d.degisim<0?'eks':'art'}">${d.degisim>0?'+':''}${yzd(d.degisim)}</p></div>
-        <div><p class="etk">Hedef</p><p class="orta sayi">${para(x.hedef,'TRY',d.tur==='fon'?4:2)}</p>
-          <p class="etk">${x.yon==='alis'?'−':'+'}${yzd(x.yon==='alis'?d.kural.alisDusus:d.kural.satisArtis)}</p></div>
-        <div><p class="etk">Sinyal</p><p class="orta sayi">${x.adet.toLocaleString('tr-TR')} adet</p>
-          <p class="etk sayi">${para(x.tutar)}${d.satisKisitli && x.yon==='satis'
-            ? ' · elindeki kadar' : ''}</p></div>
+      <div class="emircubuk" title="Eşiğin %${(oran*100).toFixed(0)}'i kat edildi"><i style="width:${(oran*100).toFixed(1)}%"></i></div>
+      <div class="emirsat">
+        <span>Son işlem <b>${para(d.referans,'TRY',bas)}</b></span>
+        <span>Güncel <b>${para(d.guncel,'TRY',bas)}</b></span>
+        <span>Hedef <b>${para(hedef,'TRY',bas)}</b></span>
       </div>
-    </div>`).join('');
+      ${tetik ? `<div class="emirsin">
+        <span><b>${say(adet).toLocaleString('tr-TR')} adet</b> ${alisMi ? 'al' : 'sat'} · ${para(tutar)}</span>
+        ${!alisMi && d.satisKisitli ? '<span class="etk">elindeki kadar</span>' : ''}
+      </div>` : ''}
+    </div>`;
+  };
+
+  /* Sütun: önce eşiği aşanlar, sonra yolda olanlar — ikisi de yakınlık sırasına göre */
+  const sutun = (yon) => {
+    const aralikta = liste.filter(d => d.hazir && (yon === 'alis' ? d.alisAralikta : d.satisAralikta));
+    const sirali = aralikta.sort((a,b) =>
+      (yon === 'alis' ? b.alisOran - a.alisOran : b.satisOran - a.satisOran) ||
+      (yon === 'alis' ? b.dusus - a.dusus : b.artis - a.artis));
+    const tetikSayi = sirali.filter(d => yon === 'alis' ? d.alisTetik : d.satisTetik).length;
+    const alisMi = yon === 'alis';
+    return `<div>
+      <div class="bas" style="margin:0 0 10px">
+        <span>${alisMi ? 'Alış emirleri' : 'Satış emirleri'}</span>
+        ${tetikSayi ? `<span class="rozet ${alisMi?'':'k'}">${tetikSayi} tetiklendi</span>` : ''}
+        <span class="etk">${sirali.length} sembol</span>
+      </div>
+      ${sirali.length ? sirali.map(d => emirKarti(d, yon)).join('')
+        : `<div class="kart">${bosKutu(alisMi
+          ? 'Fiyatı son işleminin altına inen sembol yok.'
+          : 'Fiyatı son işleminin üstüne çıkan, elinde duran sembol yok.')}</div>`}
+    </div>`;
   };
 
   return `
@@ -2745,15 +2903,12 @@ function gorunumEmirler(){
     </div>` : bosKutu('Genel kural tanımlı değil. “Genel kural” ile tutar ve oranları belirle.')}
   </div>
 
-  ${tetik.length ? `<div class="bas" style="margin:4px 0 10px">
-      <span>Tetiklenen emirler</span><span class="rozet">${tetik.length}</span></div>
-    ${tetik.map(sinyalKarti).join('')}` : `<div class="kart" style="margin-bottom:16px">
-      ${bosKutu('Tetiklenen emir yok. Fiyatlar hedeflere ulaştığında burada görünür.')}</div>`}
+  <div class="ikili">${sutun('alis')}${sutun('satis')}</div>
 
   <div class="kart" style="margin-top:16px">
-    <div class="bas"><span>İzleme</span>
-      <span class="etk">${liste.length} sembol${izlenen.length < liste.length
-        ? ' · ' + (liste.length - izlenen.length) + ' tanesi tetiklendi' : ''}</span></div>
+    <div class="bas"><span>Tüm semboller</span>
+      <span class="etk">${liste.length} sembol${tetik.length
+        ? ' · ' + tetik.length + ' tanesi tetiklendi' : ''}</span></div>
     ${liste.length ? `<div class="bkaydir"><table style="min-width:880px">
       <tr><th class="siralanir${emirSira==='sembol'?' aktif':''}" data-eylem="emirSirala" data-v="sembol"
           title="Sıralamak için tıkla">Sembol<i>${emirSira==='sembol'?'↑':''}</i></th>
@@ -2790,7 +2945,9 @@ function gorunumEmirler(){
     </table></div>` : bosKutu('İzlenecek sembol yok. Önce Yatırımlar sayfasından işlem ekle.')}
   </div>
   <p class="etk" style="margin-top:12px">Değişim ve hedefler, o sembolde yaptığın son alım ya da satımın
-  fiyatına göre hesaplanır. Adet, tutarın güncel fiyata bölünüp yukarı yuvarlanmasıyla bulunur.</p>`;
+  fiyatına göre hesaplanır. Alış sütununda fiyatı son işleminin altına inmiş semboller, satış sütununda
+  üstüne çıkmış olanlar yer alır; eşiğe ulaşanlar dolgulu gösterilir. Adet, tutarın güncel fiyata
+  bölünüp yukarı yuvarlanmasıyla bulunur.</p>`;
 }
 
 function gorunumVarlik(){
@@ -3955,6 +4112,11 @@ function ciz(){
          <span>Giriş yapılmadı — veriler yüklenmedi.</span>
          <button class="btn" data-eylem="sbGirisAc">Giriş yap</button>
        </div>` : '';
+  // Arama kutusu gibi alanlar her çizimde yeniden oluşur; imleç kaybolmasın
+  const o = document.activeElement;
+  const odak = (o && o.dataset && o.dataset.odak)
+    ? {ad: o.dataset.odak, bas: o.selectionStart, son: o.selectionEnd} : null;
+
   $('#ana').innerHTML = serit + g();
   if(typeof dugmeYaz === 'function') dugmeYaz();
   if(AYAR.saltOkunur){
@@ -3965,6 +4127,14 @@ function ciz(){
     });
   }
   $$('.yan .sek').forEach(a => a.classList.toggle('on', a.dataset.git === aktifSayfa));
+  if(odak){
+    const y = $(`[data-odak="${odak.ad}"]`);
+    if(y){
+      y.focus();
+      try{ y.setSelectionRange(odak.bas, odak.son); }catch(e){}
+      return;                              // yazarken sayfa başa sarmasın
+    }
+  }
   window.scrollTo(0,0);
 }
 function yonlendir(){
@@ -3976,7 +4146,7 @@ function yonlendir(){
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
   'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
-  'yatFiltre','yatSayfa','yatSirala','tradeSirala','emirSirala','fiyatSina','fiyatIncele','tradeDisaAktar',
+  'yatFiltre','yatSayfa','yatAraTemizle','yatSirala','tradeSirala','emirSirala','fiyatSina','fiyatIncele','tradeDisaAktar',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -4073,6 +4243,7 @@ document.addEventListener('click', ev => {
     tradeIceAktar: tradeIceAktar,
     tradeAc: () => tradeFormu((D.trades||[]).find(x => x.id === id)),
     yatFiltre: () => { yatFiltre = el.dataset.v; ciz(); },
+    yatAraTemizle: () => { yatAra = ''; ciz(); },
     yatSirala: () => {
       const a = el.dataset.alan;
       if(yatSira.alan === a) yatSira.yon = -yatSira.yon;
@@ -4217,6 +4388,11 @@ $('#durum').addEventListener('click', () => {
 });
 document.addEventListener('change', ev => {
   if(ev.target.id === 'temaSec'){ AYAR.tema = ev.target.value; yereleYaz(); temaUygula(); }
+});
+/* Arama kutuları: yazdıkça süzer, imleç ciz() içinde korunur */
+document.addEventListener('input', ev => {
+  const g = ev.target.dataset && ev.target.dataset.giris;
+  if(g === 'yatAra'){ yatAra = ev.target.value; ciz(); }
 });
 document.addEventListener('keydown', ev => {
   if(ev.key === 'Escape') kapat();
