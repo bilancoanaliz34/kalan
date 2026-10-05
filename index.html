@@ -181,8 +181,10 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
   font-variant-numeric:tabular-nums;flex-wrap:wrap}
 .emirsat b{color:var(--ink);font-weight:600}
 .emirsin{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:9px;
-  border-top:1px solid var(--cizgi);font-size:13px}
+  border-top:1px solid var(--cizgi);font-size:13px;flex-wrap:wrap}
 .emirsin b{font-weight:600}
+.emirsin.bekleyen{color:var(--mut)}
+.emirsin.bekleyen b{color:var(--ink)}
 .sirasec{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:10px}
 .sirasec button{font-size:12px;padding:4px 10px;border-radius:14px;
   background:var(--cizgi2);color:var(--mut)}
@@ -2864,10 +2866,14 @@ function gorunumEmirler(){
         <span>Güncel <b>${para(d.guncel,'TRY',bas)}</b></span>
         <span>Hedef <b>${para(hedef,'TRY',bas)}</b></span>
       </div>
-      ${tetik ? `<div class="emirsin">
-        <span><b>${say(adet).toLocaleString('tr-TR')} adet</b> ${alisMi ? 'al' : 'sat'} · ${para(tutar)}</span>
-        ${!alisMi && d.satisKisitli ? '<span class="etk">elindeki kadar</span>' : ''}
-      </div>` : ''}
+      <div class="emirsin${tetik ? '' : ' bekleyen'}">
+        <span><b>${say(adet).toLocaleString('tr-TR')} adet</b> ${alisMi ? 'al' : 'sat'}
+          · ${para(tutar)}${tetik ? '' : ' <span class="etk">(bugünkü fiyatla)</span>'}</span>
+        <span class="etk">${alisMi
+          ? (d.adet > 0 ? 'elinde ' + say(d.adet).toLocaleString('tr-TR',{maximumFractionDigits:4}) + ' adet' : 'pozisyon yok')
+          : 'elinde ' + say(d.adet).toLocaleString('tr-TR',{maximumFractionDigits:4}) + ' adet'
+            + (d.satisKisitli ? ' · tamamı' : '')}</span>
+      </div>
     </div>`;
   };
 
@@ -2935,13 +2941,14 @@ function gorunumEmirler(){
     <div class="bas"><span>Tüm semboller</span>
       <span class="etk">${liste.length} sembol${tetik.length
         ? ' · ' + tetik.length + ' tanesi tetiklendi' : ''}</span></div>
-    ${liste.length ? `<div class="bkaydir"><table style="min-width:880px">
+    ${liste.length ? `<div class="bkaydir"><table style="min-width:1060px">
       <tr><th class="siralanir${emirSira==='sembol'?' aktif':''}" data-eylem="emirSirala" data-v="sembol"
           title="Sıralamak için tıkla">Sembol<i>${emirSira==='sembol'?'↑':''}</i></th>
         <th class="sag">Son işlem</th><th class="sag">Güncel</th>
         <th class="sag siralanir${emirSira==='degisim'?' aktif':''}" data-eylem="emirSirala" data-v="degisim"
           title="Sıralamak için tıkla">Değişim<i>${emirSira==='degisim'?'↓':''}</i></th>
-        <th class="sag">Alış hedefi</th><th class="sag">Satış hedefi</th>
+        <th class="sag">Alış hedefi</th><th class="sag">Alış adedi</th>
+        <th class="sag">Satış hedefi</th><th class="sag">Satış adedi</th>
         <th>Kural</th><th></th></tr>
       ${(emirSira === 'sembol' ? liste.slice().sort((a,b) => a.sembol.localeCompare(b.sembol,'tr'))
          : emirSira === 'degisim' ? liste.slice().sort((a,b) => say(b.degisim) - say(a.degisim))
@@ -2959,10 +2966,17 @@ function gorunumEmirler(){
           <div class="${d.alisTetik?'art':'etk'}" style="font-size:11.5px;font-weight:500">${
             d.alisTetik?'tetiklendi':'%'+Math.abs(say(d.alisUzaklik)*100).toFixed(1).replace('.',',')+' kaldı'}</div>`
           :'<span class="etk">—</span>'}</td>
+        <td class="sag sayi">${d.alisAdet?`${say(d.alisAdet).toLocaleString('tr-TR')}
+          <div class="etk" style="font-size:11.5px">${para(d.alisTutar)}</div>`
+          :'<span class="etk">—</span>'}</td>
         <td class="sag sayi">${d.satisHedef?`${para(d.satisHedef,'TRY',d.tur==='fon'?4:2)}
           <div class="${d.satisTetik?'art':'etk'}" style="font-size:11.5px;font-weight:500">${
             d.satisTetikFiyat?(d.satisAdet>0?'tetiklendi':'pozisyon yok')
             :'%'+Math.abs(say(d.satisUzaklik)*100).toFixed(1).replace('.',',')+' kaldı'}</div>`
+          :'<span class="etk">—</span>'}</td>
+        <td class="sag sayi">${d.satisAdet>0?`${say(d.satisAdet).toLocaleString('tr-TR')}
+          <div class="etk" style="font-size:11.5px">${para(d.satisTutarTl)}${
+            d.satisKisitli?' · tamamı':''}</div>`
           :'<span class="etk">—</span>'}</td>
         <td>${d.kural.ozel?'<span class="rozet">kendi kuralı</span>':'<span class="etk">genel</span>'}</td>
         <td class="sag"><button class="btn ikincil ince" data-eylem="kuralDuzenle"
