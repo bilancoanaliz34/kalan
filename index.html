@@ -1032,7 +1032,7 @@ async function fiyatlariTazele({sessiz=false}={}){
     ciz();
   }catch(e){
     durumYaz('Fiyat alınamadı', 'hata');
-    if(!sessiz) bildir('Fiyat alınamadı: ' + e.message);
+    if(!sessiz) bildir('Fiyat alınamadı: ' + e.message + ' — Ayarlar > Bağlantıyı sına ile ayrıntıya bakabilirsin.');
   }
 }
 
@@ -3829,11 +3829,43 @@ document.addEventListener('click', ev => {
     yatirimDuzenle: () => yatirimFormu((D.yatirimlar||[]).find(x=>x.id===id)),
     fiyatYenile: () => fiyatlariTazele(),
     fiyatSina: async () => {
+      const satir = [];
+      const adres = fiyatServisi();
+      satir.push('Adres: ' + (adres || '(yok)'));
+      satir.push('Oturum: ' + (OTURUM ? OTURUM.email || 'açık' : 'KAPALI'));
+      if(!adres){
+        alert(satir.join('\n') + '\n\nSupabase bağlantısı yok. Ayarlar ekranından bağlan.');
+        return;
+      }
+      if(!OTURUM){
+        alert(satir.join('\n') + '\n\nÖnce giriş yapman gerekiyor.');
+        return;
+      }
       try{
-        const j = await fiyatIstek({action:'ping'});
-        alert(j && j.ok ? 'Fiyat servisi çalışıyor.\nSunucu zamanı: ' + (j.zaman||'')
-          : 'Servis yanıt verdi ama hata döndü: ' + ((j&&j.hata)||'bilinmiyor'));
-      }catch(e){ alert('Servise ulaşılamadı: ' + e.message); }
+        const c = await fetch(adres + '?action=ping', {
+          headers: {'apikey': AYAR.sbKey, 'Authorization': 'Bearer ' + OTURUM.access_token}
+        });
+        const metin = (await c.text()).slice(0, 400);
+        satir.push('HTTP: ' + c.status + ' ' + c.statusText);
+        satir.push('Yanıt: ' + (metin || '(boş)'));
+        if(c.status === 404) satir.push('\nFonksiyon bulunamadı. Supabase > Edge Functions listesinde adı tam olarak "fiyat" olmalı.');
+        else if(c.status === 401) satir.push('\nYetki reddedildi. Çıkış yapıp tekrar giriş yapmayı dene.');
+        else if(c.status >= 500) satir.push('\nFonksiyon çalışırken hata verdi. Supabase > Edge Functions > fiyat > Logs bölümüne bak.');
+        else if(c.ok) satir.push('\nServis çalışıyor.');
+      }catch(e){
+        satir.push('Ağ hatası: ' + e.message);
+        satir.push('\nFonksiyon hiç yayınlanmamış olabilir ya da tarayıcı isteği engelledi.');
+      }
+      // fiyat denemesi
+      try{
+        const c2 = await fetch(adres + '?bist=THYAO&doviz=USD', {
+          headers: {'apikey': AYAR.sbKey, 'Authorization': 'Bearer ' + OTURUM.access_token}
+        });
+        const t2 = (await c2.text()).slice(0, 400);
+        satir.push('\nFiyat denemesi (THYAO, USD): HTTP ' + c2.status);
+        satir.push(t2 || '(boş)');
+      }catch(e){ satir.push('\nFiyat denemesi başarısız: ' + e.message); }
+      alert(satir.join('\n'));
     },
     fiyatEkle: () => {
       const kod = el.dataset.sembol || '';
