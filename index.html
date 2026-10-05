@@ -134,6 +134,10 @@ td.sag,th.sag{text-align:right}
 .gizli{display:none!important}
 .hicon{width:38px;height:38px;border-radius:12px;background:var(--acik);color:var(--marka);
   display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;flex-shrink:0}
+th.siralanir{cursor:pointer;user-select:none;white-space:nowrap}
+th.siralanir:hover{color:var(--ink)}
+th.siralanir.aktif{color:var(--marka);font-weight:600}
+th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
 .sinyal{background:var(--yzy);border:1px solid var(--cizgi);border-left:4px solid var(--marka);
   border-radius:0 14px 14px 0;padding:14px 18px;margin-bottom:10px;box-shadow:var(--golge)}
 .sinyal.satis{border-left-color:var(--kirmizi)}
@@ -245,6 +249,8 @@ const ACIK_KARTLAR = new Set();   // hareketleri açık duran kartlar
 let butceTur = 'gider';           // bütçe ekranında gider mi gelir mi
 let yatFiltre = 'hepsi';          // yatırım ekranı: hepsi | hisse | fon
 let yatSayfa = 'pozisyon';        // pozisyon | islem | kapanan
+let yatSira = {alan:'deger', yon:-1};     // pozisyon tablosu sıralaması
+let tradeSira = {alan:'tarih', yon:-1};   // işlem geçmişi sıralaması
 
 /* ---------- küçük yardımcılar ---------- */
 const $ = (s, k=document) => k.querySelector(s);
@@ -973,13 +979,21 @@ function fiyatServisi(){
 async function fiyatIstek(parametreler){
   const adres = fiyatServisi();
   if(!adres) throw new Error('Supabase bağlantısı yok. Ayarlar ekranından bağlan.');
-  const q = new URLSearchParams(parametreler);
+  const temiz = {...parametreler}; delete temiz.__sure;
+  const q = new URLSearchParams(temiz);
   const tam = adres + '?' + q.toString();
+  const sure = say(parametreler.__sure) || 70000;
 
   const getir = async (secenekler) => {
+    const iptal = new AbortController();
+    const sayac = setTimeout(() => iptal.abort(), sure);
     let c;
-    try{ c = await fetch(tam, secenekler); }
-    catch(e){ const h = new Error(e.message); h.agHatasi = true; throw h; }
+    try{ c = await fetch(tam, {...(secenekler||{}), signal: iptal.signal}); }
+    catch(e){
+      const h = new Error(e.name === 'AbortError' ? 'Zaman aşımı' : e.message);
+      h.agHatasi = true; throw h;
+    }
+    finally{ clearTimeout(sayac); }
     return fiyatYanit(c);
   };
 
@@ -1038,42 +1052,104 @@ function izlenenSemboller(){
   return {bist:[...bist], fon:[...fon], doviz:[...doviz]};
 }
 
-async function fiyatlariTazele({sessiz=false}={}){
-  const s = izlenenSemboller();
-  if(!s.bist.length && !s.fon.length && s.doviz.length <= 1 && !sessiz)
-    return bildir('İzlenecek sembol yok. Önce bir işlem ya da pozisyon ekle.');
-  durumYaz('Fiyatlar alınıyor…');
-  try{
-    const j = await fiyatIstek({bist:s.bist.join(','), fon:s.fon.join(','), doviz:s.doviz.join(',')});
-    if(!j || !j.ok) throw new Error((j && j.hata) || 'Servis yanıt vermedi');
-    const gelen = j.veri || {};
-    const simdi = new Date().toISOString();
-    const yeni = [];
-    Object.keys(gelen).forEach(kod => {
-      const g = gelen[kod];
-      const eski = (D.fiyatlar||[]).find(f => f.sembol === kod) || {};
-      yeni.push({sembol:kod, tur:g.tur || eski.tur || 'elle', fiyat: say(g.fiyat),
-        guncelleme: g.tarih || simdi.slice(0,10), zaman: simdi, ad: g.ad || eski.ad || ''});
-    });
-    // servisten gelmeyen elle girilmiş satırlar korunur
-    (D.fiyatlar||[]).forEach(f => {
-      if(!yeni.some(x => x.sembol === f.sembol)) yeni.push(f);
-    });
-    D.fiyatlar = yeni;
-    isaretle('fiyatlar');
-    const sayi = Object.keys(gelen).length;
-    durumYaz(sayi + ' fiyat güncellendi', 'ok');
-    const eksik = (j.eksik || []);
-    if(!sessiz && eksik.length){
-      const kisa = eksik.slice(0, 6).join(', ') + (eksik.length > 6 ? ' ve ' + (eksik.length-6) + ' tane daha' : '');
-      bildir(eksik.length + ' sembolde fiyat yok: ' + kisa +
-        ' — Ayarlar > Eksikleri incele ile sebebini görebilirsin.');
+/* Sembolleri küçük gruplara böler: her istek kısa sürer, sonuçlar
+   geldikçe ekrana yansır, uzun listelerde zaman aşımı olmaz. */
+function gruplara(dizi, boy){
+  const g = [];
+  for(let i = 0; i < dizi.length; i += boy) g.push(dizi.slice(i, i + boy));
+  return g;
+}
+
+let fiyatAliniyor = false;
+let fiyatIlerleme = '';
+
+/* Fiyat düğmelerini güncel duruma göre yazar; her çizimden sonra çağrılır */
+function dugmeYaz(){
+  $$('[data-eylem="fiyatYenile"]').forEach(d => {
+    if(fiyatAliniyor){
+      d.dataset.eski = d.dataset.eski || d.innerHTML;
+      d.innerHTML = kacir(fiyatIlerleme || 'Alınıyor…');
+      d.disabled = true;
+    } else if(d.dataset.eski){
+      d.innerHTML = d.dataset.eski;
+      delete d.dataset.eski;
+      d.disabled = false;
     }
-    else if(!sessiz && !sayi) bildir('Servis çalıştı ama fiyat dönmedi.');
+  });
+}
+
+async function fiyatlariTazele({sessiz=false}={}){
+  if(fiyatAliniyor){ if(!sessiz) bildir('Fiyat güncellemesi zaten sürüyor.'); return; }
+  const s = izlenenSemboller();
+  const piyasa = gruplara(s.bist, 8);
+  const dovizG = gruplara(s.doviz.filter(x => x !== 'TRY'), 8);
+  const fonG = gruplara(s.fon, 5);     // TEFAS daha yavaş
+  const isler = [];
+  piyasa.forEach(g => isler.push({bist:g.join(',')}));
+  dovizG.forEach(g => isler.push({doviz:g.join(',')}));
+  fonG.forEach(g => isler.push({fon:g.join(',')}));
+
+  if(!isler.length){
+    if(!sessiz) bildir('İzlenecek sembol yok. Önce bir işlem ya da pozisyon ekle.');
+    return;
+  }
+
+  fiyatAliniyor = true;
+  fiyatIlerleme = '';
+  // Düğmeler her çizimde yeniden oluştuğu için her seferinde yeniden bulunur
+  const ilerleme = (i) => {
+    fiyatIlerleme = isler.length > 1 ? `Alınıyor ${i}/${isler.length}` : 'Alınıyor…';
+    dugmeYaz();
+    durumYaz(fiyatIlerleme);
+  };
+
+  const simdi = new Date().toISOString();
+  let gelen = 0;
+  const eksik = [];
+  const hatalar = [];
+
+  try{
+    for(let i = 0; i < isler.length; i++){
+      ilerleme(i + 1);
+      try{
+        const j = await fiyatIstek({...isler[i], __sure: 70000});
+        if(!j || !j.ok) throw new Error((j && j.hata) || 'Servis yanıt vermedi');
+        const v = j.veri || {};
+        Object.keys(v).forEach(kod => {
+          const g = v[kod];
+          const eski = (D.fiyatlar||[]).find(f => f.sembol === kod) || {};
+          D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== kod);
+          D.fiyatlar.push({sembol:kod, tur:g.tur || eski.tur || 'elle', fiyat: say(g.fiyat),
+            guncelleme: g.tarih || simdi.slice(0,10), zaman: simdi, ad: g.ad || eski.ad || ''});
+          gelen++;
+        });
+        (j.eksik || []).forEach(x => eksik.push(x));
+        isaretle('fiyatlar');
+        ciz();                       // her grup sonrası ekranı tazele
+      }catch(e){
+        hatalar.push(e.message);
+        Object.values(isler[i]).forEach(v => String(v).split(',').forEach(x => x && eksik.push(x)));
+      }
+    }
+  } finally {
+    fiyatAliniyor = false;
+    fiyatIlerleme = '';
     ciz();
-  }catch(e){
-    durumYaz('Fiyat alınamadı', 'hata');
-    if(!sessiz) bildir('Fiyat alınamadı: ' + e.message + ' — Ayarlar > Bağlantıyı sına ile ayrıntıya bakabilirsin.');
+  }
+
+  if(gelen) durumYaz(gelen + ' fiyat güncellendi', 'ok');
+  else durumYaz('Fiyat alınamadı', 'hata');
+  ciz();
+
+  if(sessiz) return;
+  if(hatalar.length && !gelen){
+    bildir('Fiyat alınamadı: ' + hatalar[0] + ' — Ayarlar > Bağlantıyı sına ile bakabilirsin.');
+  } else if(eksik.length){
+    const kisa = eksik.slice(0, 6).join(', ') + (eksik.length > 6 ? ' ve ' + (eksik.length-6) + ' tane daha' : '');
+    bildir(gelen + ' fiyat geldi · ' + eksik.length + ' sembolde yok: ' + kisa +
+      ' — Ayarlar > Eksikleri incele ile sebebini görebilirsin.');
+  } else if(gelen){
+    bildir(gelen + ' fiyat güncellendi.');
   }
 }
 
@@ -1551,6 +1627,7 @@ function portfoyOzet(filtre){
    =================================================================== */
 
 const EMIR_VARSAYILAN = {alisTutar:0, alisDusus:0, satisTutar:0, satisArtis:0};
+let emirSira = '';   // '' | sembol | degisim
 
 function genelKural(){
   const g = (D.emirKurallari||[]).find(k => !k.sembol || k.sembol === '*');
@@ -2400,6 +2477,22 @@ function digerTablosu(){
   </div>`;
 }
 
+/* Metinler Türkçe alfabeye göre, sayılar büyüklüğe göre sıralanır */
+function sirala(dizi, alan, yon){
+  return dizi.slice().sort((a, b) => {
+    const x = a[alan], y = b[alan];
+    const metin = typeof x === 'string' || typeof y === 'string';
+    if(metin) return String(x||'').localeCompare(String(y||''), 'tr') * yon;
+    return (say(x) - say(y)) * yon;
+  });
+}
+function siraBaslik(durum, etiket, alan, sag){
+  const aktif = durum.alan === alan;
+  return `<th class="${sag ? 'sag ' : ''}siralanir${aktif ? ' aktif' : ''}"
+    data-eylem="${durum === yatSira ? 'yatSirala' : 'tradeSirala'}" data-alan="${alan}"
+    title="Sıralamak için tıkla">${kacir(etiket)}<i>${aktif ? (durum.yon < 0 ? '↓' : '↑') : ''}</i></th>`;
+}
+
 function yuzde(o){
   const v = (say(o) * 100);
   return (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
@@ -2409,10 +2502,11 @@ function pozisyonTablosu(t){
   if(!t.acik.length) return `<div class="kart">${bosKutu(
     'Açık pozisyon yok. Sağ üstten bir alış işlemi ekleyerek başlayabilirsin.')}</div>`;
   return `<div class="kart"><div class="bkaydir"><table style="min-width:900px">
-    <tr><th>Sembol</th><th class="sag">Adet</th><th class="sag">Maliyet</th>
-      <th class="sag">Temettü</th><th class="sag">Fiyat</th><th class="sag">Değer</th>
-      <th class="sag">K/Z (TL)</th><th class="sag">K/Z (USD)</th><th></th></tr>
-    ${t.acik.map(p => `<tr${p.fiyat>0?'':' style="opacity:.6"'}>
+    <tr>${siraBaslik(yatSira,'Sembol','sembol')}${siraBaslik(yatSira,'Adet','adet',1)}
+      ${siraBaslik(yatSira,'Maliyet','birim',1)}${siraBaslik(yatSira,'Temettü','temettuTl',1)}
+      ${siraBaslik(yatSira,'Fiyat','fiyat',1)}${siraBaslik(yatSira,'Değer','deger',1)}
+      ${siraBaslik(yatSira,'K/Z (TL)','acikKzTl',1)}${siraBaslik(yatSira,'K/Z (USD)','acikKzUsd',1)}<th></th></tr>
+    ${sirala(t.acik, yatSira.alan, yatSira.yon).map(p => `<tr${p.fiyat>0?'':' style="opacity:.6"'}>
       <td><b>${kacir(p.sembol)}</b>
         <span class="rozet n" style="margin-left:6px">${p.tur==='fon'?'Fon':'Hisse'}</span>
         ${p.ad?`<br><small class="etk">${kacir(p.ad)}</small>`:''}</td>
@@ -2451,11 +2545,17 @@ function pozisyonTablosu(t){
 function tradeGecmisi(){
   let liste = (D.trades||[]).slice();
   if(yatFiltre !== 'hepsi') liste = liste.filter(x => (x.tur||'hisse') === yatFiltre);
-  liste.sort((a,b) => a.tarih === b.tarih ? (a.id < b.id ? 1 : -1) : (a.tarih < b.tarih ? 1 : -1));
+  if(tradeSira.alan === 'tarih')
+    liste.sort((a,b) => a.tarih === b.tarih
+      ? (a.id < b.id ? -tradeSira.yon : tradeSira.yon)
+      : (a.tarih < b.tarih ? -tradeSira.yon : tradeSira.yon));
+  else liste = sirala(liste, tradeSira.alan, tradeSira.yon);
   if(!liste.length) return `<div class="kart">${bosKutu('Kayıtlı işlem yok.')}</div>`;
   return `<div class="kart"><div class="bkaydir"><table style="min-width:760px">
-    <tr><th>Tarih</th><th>Sembol</th><th>İşlem</th><th class="sag">Adet</th>
-      <th class="sag">Fiyat</th><th class="sag">Tutar</th><th class="sag">Kur</th><th></th></tr>
+    <tr>${siraBaslik(tradeSira,'Tarih','tarih')}${siraBaslik(tradeSira,'Sembol','sembol')}
+      ${siraBaslik(tradeSira,'İşlem','yon')}${siraBaslik(tradeSira,'Adet','adet',1)}
+      ${siraBaslik(tradeSira,'Fiyat','fiyat',1)}<th class="sag">Tutar</th>
+      ${siraBaslik(tradeSira,'Kur','usdKuru',1)}<th></th></tr>
     ${liste.map(x => {
       const a = say(x.adet), f = say(x.fiyat), k = tradeKur(x);
       const tutar = x.yon === 'temettu' ? f : a * f;
@@ -2574,10 +2674,16 @@ function gorunumEmirler(){
       <span class="etk">${liste.length} sembol${izlenen.length < liste.length
         ? ' · ' + (liste.length - izlenen.length) + ' tanesi tetiklendi' : ''}</span></div>
     ${liste.length ? `<div class="bkaydir"><table style="min-width:880px">
-      <tr><th>Sembol</th><th class="sag">Son işlem</th><th class="sag">Güncel</th>
-        <th class="sag">Değişim</th><th class="sag">Alış hedefi</th><th class="sag">Satış hedefi</th>
+      <tr><th class="siralanir${emirSira==='sembol'?' aktif':''}" data-eylem="emirSirala" data-v="sembol"
+          title="Sıralamak için tıkla">Sembol<i>${emirSira==='sembol'?'↑':''}</i></th>
+        <th class="sag">Son işlem</th><th class="sag">Güncel</th>
+        <th class="sag siralanir${emirSira==='degisim'?' aktif':''}" data-eylem="emirSirala" data-v="degisim"
+          title="Sıralamak için tıkla">Değişim<i>${emirSira==='degisim'?'↓':''}</i></th>
+        <th class="sag">Alış hedefi</th><th class="sag">Satış hedefi</th>
         <th>Kural</th><th></th></tr>
-      ${liste.map(d => `<tr${d.hazir?'':' style="opacity:.55"'}>
+      ${(emirSira === 'sembol' ? liste.slice().sort((a,b) => a.sembol.localeCompare(b.sembol,'tr'))
+         : emirSira === 'degisim' ? liste.slice().sort((a,b) => say(b.degisim) - say(a.degisim))
+         : liste).map(d => `<tr${d.hazir?'':' style="opacity:.55"'}>
         <td><b>${kacir(d.sembol)}</b>
           ${d.adet>0?`<br><small class="etk">${say(d.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})} adet</small>`
             :'<br><small class="etk">pozisyon kapalı</small>'}</td>
@@ -3769,6 +3875,7 @@ function ciz(){
          <button class="btn" data-eylem="sbGirisAc">Giriş yap</button>
        </div>` : '';
   $('#ana').innerHTML = serit + g();
+  if(typeof dugmeYaz === 'function') dugmeYaz();
   if(AYAR.saltOkunur){
     $$('#ana [data-eylem]').forEach(d => {
       if(SERBEST_EYLEM.has(d.dataset.eylem) && d.dataset.eylem !== 'zorlaKaydet') return;
@@ -3788,7 +3895,7 @@ function yonlendir(){
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
   'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
-  'yatFiltre','yatSayfa','fiyatSina','fiyatIncele','tradeDisaAktar',
+  'yatFiltre','yatSayfa','yatSirala','tradeSirala','emirSirala','fiyatSina','fiyatIncele','tradeDisaAktar',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -3885,6 +3992,19 @@ document.addEventListener('click', ev => {
     tradeIceAktar: tradeIceAktar,
     tradeAc: () => tradeFormu((D.trades||[]).find(x => x.id === id)),
     yatFiltre: () => { yatFiltre = el.dataset.v; ciz(); },
+    yatSirala: () => {
+      const a = el.dataset.alan;
+      if(yatSira.alan === a) yatSira.yon = -yatSira.yon;
+      else yatSira = {alan:a, yon: a === 'sembol' ? 1 : -1};
+      ciz();
+    },
+    tradeSirala: () => {
+      const a = el.dataset.alan;
+      if(tradeSira.alan === a) tradeSira.yon = -tradeSira.yon;
+      else tradeSira = {alan:a, yon: (a === 'sembol' || a === 'yon') ? 1 : -1};
+      ciz();
+    },
+    emirSirala: () => { emirSira = emirSira === el.dataset.v ? '' : el.dataset.v; ciz(); },
     yatSayfa: () => { yatSayfa = el.dataset.v; ciz(); },
     yatirimEkle: () => yatirimFormu(),
     yatirimDuzenle: () => yatirimFormu((D.yatirimlar||[]).find(x=>x.id===id)),
