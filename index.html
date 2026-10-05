@@ -223,18 +223,20 @@ const VARSAYILAN_SB_KEY = 'sb_publishable_FuJW-NpE0fGwwrm8uGSwdA_YAdUOJsv';
 const VARSAYILAN_TABLO = '13FCKHAWPQ8yOfvXk6C3WYfgLbx86BuzBu6Qy6Mg-Shs';
 const VARSAYILAN_URL = 'https://script.google.com/macros/s/AKfycbwwf6cYDGqb6l6knthq3N0BoQFWgt2I31UozCeOgxS001-igUL8f-idOaqR8iYzcC1NCw/exec';
 
-const TABLOLAR = ['ayarlar','hesaplar','kategoriler','islemler','butce','borclar',
+const TABLOLAR = ['ayarlar','hesaplar','kategoriler','islemler','butce','borclar','trades',
   'borcTaksitleri','ekstreler','kisiler','kisiBorclari','tekrarlayanlar',
   'yatirimlar','varliklar','fiyatlar','anlikGoruntu'];
 
 let D = {};                    // veri
-let AYAR = { url:'', tablo:'', sbUrl:'', sbKey:'', sonHesap:'', tema:'sistem', mod:'tablo', dosyaAd:'', saltOkunur:true };
+let AYAR = { url:'', tablo:'', sbUrl:'', sbKey:'', sonHesap:'', tema:'sistem', mod:'supabase', dosyaAd:'', saltOkunur:false };
 let kirli = new Set();         // kaydedilecek sayfalar
 let kaydetZaman = null;
 let aktifSayfa = 'ozet';
 let fltr = { ay: donemStr(new Date()), tur:'hepsi', etiket:'', hesap:'' };
 const ACIK_KARTLAR = new Set();   // hareketleri açık duran kartlar
 let butceTur = 'gider';           // bütçe ekranında gider mi gelir mi
+let yatFiltre = 'hepsi';          // yatırım ekranı: hepsi | hisse | fon
+let yatSayfa = 'pozisyon';        // pozisyon | islem | kapanan
 
 /* ---------- küçük yardımcılar ---------- */
 const $ = (s, k=document) => k.querySelector(s);
@@ -941,14 +943,98 @@ async function kaydet(){
     bildir('Kaydedilemedi: ' + e2.message + ' — veriler cihazda duruyor.');
   }
 }
-async function fiyatlariTazele(){
-  if(!AYAR.url) return bildir('Önce Sheets bağlantısını kur.');
+/* ===================================================================
+   FİYAT SERVİSİ
+   BIST ve döviz GOOGLEFINANCE (yaklaşık 15 dk gecikmeli),
+   fonlar TEFAS (günlük) üzerinden Apps Script ara katmanıyla gelir.
+   İstek betik etiketiyle yapılır, bu yüzden CORS engeline takılmaz.
+   =================================================================== */
+
+function fiyatServisi(){
+  return AYAR.sbUrl ? AYAR.sbUrl.replace(/\/$/, '') + '/functions/v1/fiyat' : '';
+}
+
+async function fiyatIstek(parametreler){
+  const adres = fiyatServisi();
+  if(!adres) throw new Error('Supabase bağlantısı yok. Ayarlar ekranından bağlan.');
+  if(!await oturumGecerli()) throw new Error('Oturum açık değil.');
+  const q = new URLSearchParams(parametreler);
+  const c = await fetch(adres + '?' + q.toString(), {
+    headers: {'apikey': AYAR.sbKey, 'Authorization': 'Bearer ' + OTURUM.access_token}
+  });
+  const metin = await c.text();
+  let j = null;
+  try{ j = metin ? JSON.parse(metin) : null; }catch(e){}
+  if(!c.ok){
+    if(c.status === 404)
+      throw new Error('Fiyat fonksiyonu bulunamadı. Supabase panelinde Edge Functions altında "fiyat" adıyla yayınlanmış olmalı.');
+    throw new Error((j && (j.hata || j.message)) || ('HTTP ' + c.status));
+  }
+  return j;
+}
+
+/* Portföyde geçen tüm sembolleri türlerine göre toplar */
+function izlenenSemboller(){
+  const bist = new Set(), fon = new Set(), doviz = new Set(['USD']);
+  (D.trades||[]).forEach(t => {
+    if(!t.sembol) return;
+    (t.tur === 'fon' ? fon : bist).add(String(t.sembol).toUpperCase());
+  });
+  (D.yatirimlar||[]).forEach(y => {
+    const s = String(y.sembol||'').toUpperCase();
+    if(!s) return;
+    if(y.tur === 'bist_hisse') bist.add(s);
+    else if(y.tur === 'yatirim_fonu') fon.add(s);
+    else if(y.tur === 'doviz') doviz.add(s);
+  });
+  (D.hesaplar||[]).forEach(h => { if(h.paraBirimi && h.paraBirimi !== 'TRY') doviz.add(h.paraBirimi); });
+  (D.varliklar||[]).forEach(v => { if(v.paraBirimi && v.paraBirimi !== 'TRY') doviz.add(v.paraBirimi); });
+  return {bist:[...bist], fon:[...fon], doviz:[...doviz]};
+}
+
+async function fiyatlariTazele({sessiz=false}={}){
+  const s = izlenenSemboller();
+  if(!s.bist.length && !s.fon.length && s.doviz.length <= 1 && !sessiz)
+    return bildir('İzlenecek sembol yok. Önce bir işlem ya da pozisyon ekle.');
   durumYaz('Fiyatlar alınıyor…');
   try{
-    const j = await sheetsIstek({action:'prices'});
-    D.fiyatlar = (j.veri.fiyatlar||[]).map(duzelt);
-    yereleYaz(); durumYaz('Fiyatlar güncellendi', 'ok'); ciz();
-  }catch(e){ durumYaz('Fiyat alınamadı','hata'); bildir(e.message); }
+    const j = await fiyatIstek({bist:s.bist.join(','), fon:s.fon.join(','), doviz:s.doviz.join(',')});
+    if(!j || !j.ok) throw new Error((j && j.hata) || 'Servis yanıt vermedi');
+    const gelen = j.veri || {};
+    const simdi = new Date().toISOString();
+    const yeni = [];
+    Object.keys(gelen).forEach(kod => {
+      const g = gelen[kod];
+      const eski = (D.fiyatlar||[]).find(f => f.sembol === kod) || {};
+      yeni.push({sembol:kod, tur:g.tur || eski.tur || 'elle', fiyat: say(g.fiyat),
+        guncelleme: g.tarih || simdi.slice(0,10), zaman: simdi, ad: g.ad || eski.ad || ''});
+    });
+    // servisten gelmeyen elle girilmiş satırlar korunur
+    (D.fiyatlar||[]).forEach(f => {
+      if(!yeni.some(x => x.sembol === f.sembol)) yeni.push(f);
+    });
+    D.fiyatlar = yeni;
+    isaretle('fiyatlar');
+    const sayi = Object.keys(gelen).length;
+    durumYaz(sayi + ' fiyat güncellendi', 'ok');
+    const eksik = (j.eksik || []);
+    if(!sessiz && eksik.length)
+      bildir(eksik.join(', ') + ' için fiyat bulunamadı. Sembolü kontrol et ya da elle gir.');
+    else if(!sessiz && !sayi) bildir('Servis çalıştı ama fiyat dönmedi.');
+    ciz();
+  }catch(e){
+    durumYaz('Fiyat alınamadı', 'hata');
+    if(!sessiz) bildir('Fiyat alınamadı: ' + e.message);
+  }
+}
+
+/* İşlem günündeki USD kurunu servisten ister */
+async function gunlukKur(tarih){
+  try{
+    const j = await fiyatIstek({action:'kur', tarih});
+    if(j && j.ok && j.veri && say(j.veri.kur) > 0) return say(j.veri.kur);
+  }catch(e){}
+  return 0;
 }
 
 /* ---------- adres denetimi ---------- */
@@ -994,6 +1080,11 @@ function kur(kod){
   return f && say(f.fiyat) > 0 ? say(f.fiyat) : 1;
 }
 function tl(tutar, kb){ return say(tutar) * kur(kb); }
+/* Enstrüman fiyatı: bilinmiyorsa 0 döner, böylece değer yanlış hesaplanmaz */
+function fiyatBul(sembol){
+  const f = (D.fiyatlar||[]).find(x => x.sembol === String(sembol||'').toUpperCase());
+  return f ? say(f.fiyat) : 0;
+}
 function hesap(id){ return (D.hesaplar||[]).find(h => h.id === id); }
 function kategori(id){ return (D.kategoriler||[]).find(k => k.id === id); }
 function kokKategori(id){
@@ -1270,6 +1361,129 @@ function yaklasanOdemeler(gun=30){
   return liste.sort((a,b2) => a.tarih < b2.tarih ? -1 : 1);
 }
 
+/* ===================================================================
+   PORTFÖY — işlemlerden pozisyon ve kâr/zarar
+   Ortalama maliyet yöntemi. USD maliyeti işlem günündeki kurla
+   sabitlenir, böylece gerçek dolar getirisi hesaplanır.
+   =================================================================== */
+
+const TRADE_YON = {alis:'Alış', satis:'Satış', temettu:'Temettü',
+  bedelsiz:'Bedelsiz', bolunme:'Bölünme'};
+
+function tradeKur(t){
+  const k = say(t.usdKuru);
+  return k > 0 ? k : (kur('USD') || 1);
+}
+
+/* Bir sembolün tüm hareketlerini sırayla işler */
+function pozisyonHesapla(sembol){
+  const hareketler = (D.trades||[])
+    .filter(t => String(t.sembol||'').toUpperCase() === String(sembol).toUpperCase())
+    .sort((a,b) => a.tarih === b.tarih ? (a.id < b.id ? -1 : 1) : (a.tarih < b.tarih ? -1 : 1));
+
+  let adet = 0, maliyet = 0, maliyetUsd = 0;
+  let realizeTl = 0, realizeUsd = 0, temettuTl = 0, temettuUsd = 0;
+  let ad = '', tur = 'hisse';
+  const kapanan = [];
+
+  hareketler.forEach(t => {
+    const k = tradeKur(t);
+    if(t.ad) ad = t.ad;
+    if(t.tur) tur = t.tur;
+    const a = say(t.adet), f = say(t.fiyat);
+
+    if(t.yon === 'alis'){
+      adet += a;
+      maliyet += a * f;
+      maliyetUsd += (a * f) / k;
+    }
+    else if(t.yon === 'satis'){
+      if(adet <= 0) return;
+      const sat = Math.min(a, adet);
+      const birim = maliyet / adet;
+      const birimUsd = maliyetUsd / adet;
+      const kzTl = sat * f - sat * birim;
+      const kzUsd = (sat * f) / k - sat * birimUsd;
+      realizeTl += kzTl; realizeUsd += kzUsd;
+      kapanan.push({tarih:t.tarih, sembol, ad, tur, adet:sat, fiyat:f,
+        maliyet:birim, kzTl, kzUsd, kur:k,
+        oran: birim > 0 ? (f / birim - 1) : 0,
+        oranUsd: birimUsd > 0 ? ((f / k) / birimUsd - 1) : 0, id:t.id});
+      adet -= sat;
+      maliyet -= sat * birim;
+      maliyetUsd -= sat * birimUsd;
+      if(adet < 0.0000001){ adet = 0; maliyet = 0; maliyetUsd = 0; }
+    }
+    else if(t.yon === 'temettu'){
+      const brut = say(t.fiyat), stopaj = say(t.stopaj);
+      temettuTl += brut - stopaj;
+      temettuUsd += (brut - stopaj) / k;
+    }
+    else if(t.yon === 'bedelsiz'){
+      adet += adet * say(t.oran);          // oran 0.5 = %50 bedelsiz
+    }
+    else if(t.yon === 'bolunme'){
+      const c = say(t.oran);
+      if(c > 0) adet *= c;                  // 2 = bir pay iki paya bölündü
+    }
+  });
+
+  const fiyat = fiyatBul(sembol);
+  const deger = adet * fiyat;
+  const usdKuru = kur('USD') || 1;
+  return {
+    sembol: String(sembol).toUpperCase(), ad, tur,
+    adet, maliyet, maliyetUsd,
+    birim: adet > 0 ? maliyet / adet : 0,
+    birimUsd: adet > 0 ? maliyetUsd / adet : 0,
+    fiyat, deger, degerUsd: deger / usdKuru,
+    acikKzTl: deger - maliyet,
+    acikKzUsd: deger / usdKuru - maliyetUsd,
+    acikOran: maliyet > 0 ? (deger / maliyet - 1) : 0,
+    acikOranUsd: maliyetUsd > 0 ? ((deger / usdKuru) / maliyetUsd - 1) : 0,
+    realizeTl, realizeUsd, temettuTl, temettuUsd,
+    toplamKzTl: (deger - maliyet) + realizeTl + temettuTl,
+    toplamKzUsd: (deger / usdKuru - maliyetUsd) + realizeUsd + temettuUsd,
+    kapanan, hareketSayisi: hareketler.length,
+    fiyatVar: fiyat > 0
+  };
+}
+
+function tumPozisyonlar(){
+  const semboller = [...new Set((D.trades||[])
+    .map(t => String(t.sembol||'').toUpperCase()).filter(Boolean))];
+  return semboller.map(pozisyonHesapla)
+    .sort((a,b) => b.deger - a.deger);
+}
+
+function portfoyOzet(filtre){
+  const hepsi = tumPozisyonlar().filter(p => !filtre || p.tur === filtre);
+  const acik = hepsi.filter(p => p.adet > 0.0000001);
+  const fiyatli = acik.filter(p => p.fiyat > 0);
+  const fiyatsiz = acik.filter(p => !(p.fiyat > 0));
+  const usdKuru = kur('USD') || 1;
+  const t = {
+    pozisyonlar: hepsi, acik, fiyatli, fiyatsiz,
+    deger: fiyatli.reduce((a,p) => a + p.deger, 0),
+    maliyet: fiyatli.reduce((a,p) => a + p.maliyet, 0),
+    maliyetUsd: fiyatli.reduce((a,p) => a + p.maliyetUsd, 0),
+    realizeTl: hepsi.reduce((a,p) => a + p.realizeTl, 0),
+    realizeUsd: hepsi.reduce((a,p) => a + p.realizeUsd, 0),
+    temettuTl: hepsi.reduce((a,p) => a + p.temettuTl, 0),
+    temettuUsd: hepsi.reduce((a,p) => a + p.temettuUsd, 0),
+    usdKuru
+  };
+  t.degerUsd = t.deger / usdKuru;
+  t.acikKzTl = t.deger - t.maliyet;
+  t.acikKzUsd = t.degerUsd - t.maliyetUsd;
+  t.acikOran = t.maliyet > 0 ? (t.deger / t.maliyet - 1) : 0;
+  t.acikOranUsd = t.maliyetUsd > 0 ? (t.degerUsd / t.maliyetUsd - 1) : 0;
+  t.toplamKzTl = t.acikKzTl + t.realizeTl + t.temettuTl;
+  t.toplamKzUsd = t.acikKzUsd + t.realizeUsd + t.temettuUsd;
+  t.kapanan = hepsi.flatMap(p => p.kapanan).sort((a,b) => a.tarih < b.tarih ? 1 : -1);
+  return t;
+}
+
 /* Net varlık */
 function netVarlik(){
   let varlik = 0, borc = 0;
@@ -1286,8 +1500,14 @@ function netVarlik(){
     else { borc += -b; kalem.push({grup:'Hesap borcu', ad:h.ad, tutar:b}); }
   });
   (D.yatirimlar||[]).forEach(y => {
-    const d = say(y.adet) * kur(y.sembol);
+    const d = say(y.adet) * fiyatBul(y.sembol);
+    if(d <= 0) return;
     varlik += d; kalem.push({grup:'Yatırım', ad:y.sembol, tutar:d});
+  });
+  tumPozisyonlar().forEach(p => {
+    if(p.adet <= 0.0000001 || p.deger <= 0) return;
+    varlik += p.deger;
+    kalem.push({grup: p.tur === 'fon' ? 'Fon' : 'Hisse', ad:p.sembol, tutar:p.deger});
   });
   (D.varliklar||[]).forEach(v => {
     if(v.netVarligaDahil === false) return;
@@ -1335,7 +1555,7 @@ function bosKutu(metin){ return `<div class="bos">${metin}</div>`; }
 
 /* modal form ------------------------------------------------------- */
 function kapat(){ $$('.kapla').forEach(e=>e.remove()); }
-function formAc({baslik, alanlar, deger={}, kaydet, genis=false, sil=null, ekAlt=''}){
+function formAc({baslik, alanlar, deger={}, kaydet, genis=false, sil=null, ekAlt='', dogrula=null}){
   kapat();
   const d = document.createElement('div');
   d.className = 'kapla';
@@ -1362,10 +1582,39 @@ function formAc({baslik, alanlar, deger={}, kaydet, genis=false, sil=null, ekAlt
       if(!el) return;
       v[a.ad] = a.tip === 'onay' ? el.checked : (a.tip === 'sayi' ? say(el.value) : el.value);
     });
+    if(dogrula){
+      const hata = dogrula(v);
+      if(hata){
+        let e = $('#frmHata', d);
+        if(!e){
+          e = document.createElement('p');
+          e.id = 'frmHata';
+          e.style.cssText = 'margin-top:10px;font-size:13px;color:var(--kirmiziY)';
+          $('#frm', d).appendChild(e);
+        }
+        e.textContent = hata;
+        return;
+      }
+    }
     kaydet(v);
     kapat(); ciz();
   };
   d.addEventListener('click', ev => {
+    const sc = ev.target.closest('[data-sembolsec]');
+    if(sc){
+      ev.preventDefault();
+      const alan = d.querySelector('[name="sembol"]');
+      if(alan){
+        alan.value = sc.dataset.sembolsec;
+        const p = pozisyonHesapla(alan.value);
+        const tAlan = d.querySelector('[name="tur"]');
+        if(tAlan && p.tur) tAlan.value = p.tur;
+        const adAlan = d.querySelector('[name="ad"]');
+        if(adAlan && p.ad && !adAlan.value) adAlan.value = p.ad;
+        kosulluAlanlar(d, []);
+      }
+      return;
+    }
     const c = ev.target.closest('[data-etiket]');
     if(!c) return;
     ev.preventDefault();
@@ -1925,38 +2174,199 @@ function gorunumKisiler(){
 }
 
 function gorunumYatirim(){
-  const y = D.yatirimlar||[];
-  const toplam = y.reduce((a,x)=>a+say(x.adet)*kur(x.sembol),0);
-  const maliyet = y.reduce((a,x)=>a+say(x.adet)*say(x.maliyet),0);
+  const t = portfoyOzet(['hepsi','diger'].includes(yatFiltre) ? null : yatFiltre);
+  const fiyatZaman = (D.fiyatlar||[]).reduce((a,f) => f.zaman && f.zaman > a ? f.zaman : a, '');
+  const usdKuru = t.usdKuru;
+
+  const sayfalar = {
+    pozisyon: () => yatFiltre === 'diger' ? digerTablosu() : pozisyonTablosu(t),
+    islem: () => tradeGecmisi(),
+    kapanan: () => kapananTablosu(t)
+  };
+
   return `
   <div class="ust"><h1>Yatırımlar</h1>
-    <button class="btn ikincil" data-eylem="fiyatYenile">Fiyatları güncelle</button>
-    <button class="btn" data-eylem="yatirimEkle"><svg><use href="#s-plus"/></svg>Pozisyon ekle</button></div>
+    <button class="btn ikincil" data-eylem="fiyatYenile"><svg><use href="#s-sync"/></svg>Fiyatları güncelle</button>
+    <button class="btn ikincil" data-eylem="tradeEkle" data-yon="temettu">Temettü</button>
+    <button class="btn" data-eylem="tradeEkle"><svg><use href="#s-plus"/></svg>İşlem ekle</button></div>
+
   <div class="izgara i3" style="margin-bottom:16px">
-    <div class="kart"><p class="etk">Güncel değer</p><p class="orta sayi">${para(toplam)}</p></div>
-    <div class="kart"><p class="etk">Maliyet</p><p class="orta sayi">${para(maliyet)}</p></div>
-    <div class="kart"><p class="etk">Kâr / zarar</p>
-      <p class="orta sayi ${toplam-maliyet<0?'eks':'art'}">${para(toplam-maliyet)}</p>
-      <p class="etk">${maliyet?('%'+((toplam/maliyet-1)*100).toFixed(1).replace('.',',')):''}</p></div>
+    <div class="kart"><p class="etk">Portföy değeri</p>
+      <p class="orta sayi">${para(t.deger)}</p>
+      <p class="etk sayi">${para(t.degerUsd, 'USD')}${usdKuru>1?` · kur ${para(usdKuru,'TRY',2)}`:''}</p></div>
+    <div class="kart"><p class="etk">Açık kâr / zarar</p>
+      <p class="orta sayi ${t.acikKzTl<0?'eks':'art'}">${t.acikKzTl>0?'+':''}${para(t.acikKzTl)}</p>
+      <p class="etk">${yuzde(t.acikOran)} · maliyet ${para(t.maliyet)}</p></div>
+    <div class="kart"><p class="etk">Açık kâr / zarar (USD)</p>
+      <p class="orta sayi ${t.acikKzUsd<0?'eks':'art'}">${t.acikKzUsd>0?'+':''}${para(t.acikKzUsd,'USD')}</p>
+      <p class="etk">${yuzde(t.acikOranUsd)} · maliyet ${para(t.maliyetUsd,'USD')}</p></div>
   </div>
-  <div class="kart">
-    ${y.length ? `<table>
+
+  ${(t.realizeTl || t.temettuTl) ? `<div class="izgara i3" style="margin-bottom:16px">
+    <div class="kart"><p class="etk">Gerçekleşen kâr / zarar</p>
+      <p class="orta sayi ${t.realizeTl<0?'eks':'art'}">${t.realizeTl>0?'+':''}${para(t.realizeTl)}</p>
+      <p class="etk sayi">${t.realizeUsd>0?'+':''}${para(t.realizeUsd,'USD')}</p></div>
+    <div class="kart"><p class="etk">Temettü</p>
+      <p class="orta sayi art">${para(t.temettuTl)}</p>
+      <p class="etk sayi">${para(t.temettuUsd,'USD')}</p></div>
+    <div class="kart"><p class="etk">Toplam getiri</p>
+      <p class="orta sayi ${t.toplamKzTl<0?'eks':'art'}">${t.toplamKzTl>0?'+':''}${para(t.toplamKzTl)}</p>
+      <p class="etk sayi">${t.toplamKzUsd>0?'+':''}${para(t.toplamKzUsd,'USD')} · açık + gerçekleşen + temettü</p></div>
+  </div>` : ''}
+
+  <div class="sek2">
+    ${[['hepsi','Tümü'],['hisse','Hisseler'],['fon','Fonlar'],['diger','Döviz ve altın']].map(([v,a]) =>
+      `<button data-eylem="yatFiltre" data-v="${v}" class="${yatFiltre===v?'on':''}">${a}</button>`).join('')}
+    <span style="width:14px"></span>
+    ${[['pozisyon','Pozisyonlar'],['islem','İşlem geçmişi'],['kapanan','Kapanan işlemler']].map(([v,a]) =>
+      `<button data-eylem="yatSayfa" data-v="${v}" class="${yatSayfa===v?'on':''}">${a}</button>`).join('')}
+    <span class="etk" style="margin-left:auto;align-self:center">
+      ${fiyatZaman ? 'Fiyatlar ' + new Date(fiyatZaman).toLocaleString('tr-TR',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) + ' itibarıyla'
+        : 'Fiyat alınmadı'}</span>
+  </div>
+
+  ${(sayfalar[yatSayfa] || sayfalar.pozisyon)()}`;
+}
+
+function digerTablosu(){
+  const y = D.yatirimlar||[];
+  const TUR = {doviz:'Döviz', altin:'Altın', kripto:'Kripto',
+    bist_hisse:'BIST', yatirim_fonu:'Fon', yabanci_hisse:'Yabancı'};
+  const usdKuru = kur('USD') || 1;
+  return `<div class="kart">
+    <div class="bas"><span>Döviz, altın ve diğer</span>
+      <button class="btn ince" data-eylem="yatirimEkle">Pozisyon ekle</button></div>
+    <p class="etk" style="margin-bottom:12px">Bu bölüm basit tutulur: adet ve ortalama maliyet
+    girersin, alım-satım geçmişi tutulmaz. Hisse ve fonlar için İşlem ekle'yi kullan.</p>
+    ${y.length ? `<div class="bkaydir"><table style="min-width:720px">
       <tr><th>Sembol</th><th>Tür</th><th class="sag">Adet</th><th class="sag">Maliyet</th>
         <th class="sag">Fiyat</th><th class="sag">Değer</th><th class="sag">K/Z</th><th></th></tr>
       ${y.map(x => {
-        const f = kur(x.sembol), d = say(x.adet)*f, m = say(x.adet)*say(x.maliyet);
-        return `<tr><td><b>${kacir(x.sembol)}</b><br><small class="etk">${kacir(x.ad||'')}</small></td>
-          <td>${kacir({bist_hisse:'BIST',yatirim_fonu:'Fon',yabanci_hisse:'Yabancı',kripto:'Kripto',doviz:'Döviz',altin:'Altın'}[x.tur]||x.tur)}</td>
-          <td class="sag sayi">${say(x.adet).toLocaleString('tr-TR')}</td>
+        const f = fiyatBul(x.sembol), d = say(x.adet) * f, m = say(x.adet) * say(x.maliyet);
+        return `<tr>
+          <td><b>${kacir(x.sembol)}</b>${x.ad?`<br><small class="etk">${kacir(x.ad)}</small>`:''}</td>
+          <td>${kacir(TUR[x.tur] || x.tur)}</td>
+          <td class="sag sayi">${say(x.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</td>
           <td class="sag sayi">${para(x.maliyet,'TRY',2)}</td>
-          <td class="sag sayi">${f>1?para(f,'TRY',2):'<span class="etk">fiyat yok</span>'}</td>
-          <td class="sag sayi">${para(d)}</td>
-          <td class="sag sayi ${d-m<0?'eks':'art'}">${para(d-m)}</td>
-          <td class="sag"><button class="btn ikincil ince" data-eylem="yatirimDuzenle" data-id="${x.id}">Düzenle</button></td></tr>`;
-      }).join('')}</table>
-      <p class="etk" style="margin-top:12px">Fiyatlar Google E-Tablo'daki <b>fiyatlar</b> sayfasından gelir.
-      BIST ve döviz için GOOGLEFINANCE formülü kurulur; altın ve fonlar elle girilir.</p>` : bosKutu('Pozisyon yok.')}
+          <td class="sag sayi">${f>0?para(f,'TRY',2):'<span class="rozet s">fiyat yok</span>'}</td>
+          <td class="sag sayi">${para(d)}<div class="etk" style="font-size:11.5px">${para(d/usdKuru,'USD')}</div></td>
+          <td class="sag sayi ${d-m<0?'eks':'art'}">${d-m>0?'+':''}${para(d-m)}</td>
+          <td class="sag"><button class="btn ikincil ince" data-eylem="yatirimDuzenle" data-id="${x.id}">Düzenle</button></td>
+        </tr>`;
+      }).join('')}
+    </table></div>` : bosKutu('Kayıt yok.')}
   </div>`;
+}
+
+function yuzde(o){
+  const v = (say(o) * 100);
+  return (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%';
+}
+
+function pozisyonTablosu(t){
+  if(!t.acik.length) return `<div class="kart">${bosKutu(
+    'Açık pozisyon yok. Sağ üstten bir alış işlemi ekleyerek başlayabilirsin.')}</div>`;
+  return `<div class="kart"><div class="bkaydir"><table style="min-width:900px">
+    <tr><th>Sembol</th><th class="sag">Adet</th><th class="sag">Maliyet</th>
+      <th class="sag">Fiyat</th><th class="sag">Değer</th>
+      <th class="sag">K/Z (TL)</th><th class="sag">K/Z (USD)</th><th></th></tr>
+    ${t.acik.map(p => `<tr${p.fiyat>0?'':' style="opacity:.6"'}>
+      <td><b>${kacir(p.sembol)}</b>
+        <span class="rozet n" style="margin-left:6px">${p.tur==='fon'?'Fon':'Hisse'}</span>
+        ${p.ad?`<br><small class="etk">${kacir(p.ad)}</small>`:''}</td>
+      <td class="sag sayi">${say(p.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</td>
+      <td class="sag sayi">${para(p.birim,'TRY',p.tur==='fon'?4:2)}
+        <div class="etk" style="font-size:11.5px">${para(p.birimUsd,'USD',p.tur==='fon'?4:2)}</div></td>
+      <td class="sag sayi">${p.fiyat>0 ? para(p.fiyat,'TRY',p.tur==='fon'?4:2)
+        : '<span class="rozet s">fiyat yok</span>'}</td>
+      <td class="sag sayi">${p.fiyat>0 ? para(p.deger) +
+        `<div class="etk" style="font-size:11.5px">${para(p.degerUsd,'USD')}</div>` : '<span class="etk">—</span>'}</td>
+      <td class="sag sayi ${p.fiyat>0 ? (p.acikKzTl<0?'eks':'art') : 'etk'}">${p.fiyat>0
+        ? (p.acikKzTl>0?'+':'') + para(p.acikKzTl) +
+          `<div style="font-size:11.5px;font-weight:500">${yuzde(p.acikOran)}</div>` : '—'}</td>
+      <td class="sag sayi ${p.fiyat>0 ? (p.acikKzUsd<0?'eks':'art') : 'etk'}">${p.fiyat>0
+        ? (p.acikKzUsd>0?'+':'') + para(p.acikKzUsd,'USD') +
+          `<div style="font-size:11.5px;font-weight:500">${yuzde(p.acikOranUsd)}</div>` : '—'}</td>
+      <td class="sag" style="white-space:nowrap">
+        <button class="btn ikincil ince" data-eylem="tradeEkle" data-sembol="${kacir(p.sembol)}" data-yon="alis">Al</button>
+        <button class="btn ikincil ince" data-eylem="tradeEkle" data-sembol="${kacir(p.sembol)}" data-yon="satis">Sat</button></td>
+    </tr>`).join('')}
+    <tr style="border-top:2px solid var(--cizgi)">
+      <td><b>Toplam</b></td><td></td><td class="sag sayi">${para(t.maliyet)}</td><td></td>
+      <td class="sag sayi"><b>${para(t.deger)}</b></td>
+      <td class="sag sayi ${t.acikKzTl<0?'eks':'art'}"><b>${t.acikKzTl>0?'+':''}${para(t.acikKzTl)}</b></td>
+      <td class="sag sayi ${t.acikKzUsd<0?'eks':'art'}"><b>${t.acikKzUsd>0?'+':''}${para(t.acikKzUsd,'USD')}</b></td>
+      <td></td></tr>
+  </table></div>
+  ${t.fiyatsiz.length ? `<p class="etk" style="margin-top:10px">
+    ${t.fiyatsiz.map(p => kacir(p.sembol)).join(', ')} için fiyat yok, bu yüzden toplamlara
+    katılmadı. “Fiyatları güncelle” ile çekebilir ya da Ayarlar'dan elle girebilirsin.</p>` : ''}</div>`;
+}
+
+function tradeGecmisi(){
+  let liste = (D.trades||[]).slice();
+  if(yatFiltre !== 'hepsi') liste = liste.filter(x => (x.tur||'hisse') === yatFiltre);
+  liste.sort((a,b) => a.tarih === b.tarih ? (a.id < b.id ? 1 : -1) : (a.tarih < b.tarih ? 1 : -1));
+  if(!liste.length) return `<div class="kart">${bosKutu('Kayıtlı işlem yok.')}</div>`;
+  return `<div class="kart"><div class="bkaydir"><table style="min-width:760px">
+    <tr><th>Tarih</th><th>Sembol</th><th>İşlem</th><th class="sag">Adet</th>
+      <th class="sag">Fiyat</th><th class="sag">Tutar</th><th class="sag">Kur</th><th></th></tr>
+    ${liste.map(x => {
+      const a = say(x.adet), f = say(x.fiyat), k = tradeKur(x);
+      const tutar = x.yon === 'temettu' ? f - say(x.stopaj) : a * f;
+      const ozel = x.yon === 'bedelsiz' || x.yon === 'bolunme';
+      return `<tr data-eylem="tradeAc" data-id="${x.id}" style="cursor:pointer">
+        <td>${trTarih(x.tarih)}</td>
+        <td><b>${kacir(x.sembol)}</b></td>
+        <td><span class="rozet ${x.yon==='satis'?'k':(x.yon==='alis'?'':'n')}">${TRADE_YON[x.yon]||x.yon}</span>
+          ${x.not?`<br><small class="etk">${kacir(x.not)}</small>`:''}</td>
+        <td class="sag sayi">${ozel ? '<span class="etk">oran ' + say(x.oran).toLocaleString('tr-TR') + '</span>'
+          : (a ? a.toLocaleString('tr-TR',{maximumFractionDigits:4}) : '')}</td>
+        <td class="sag sayi">${ozel ? '' : (x.yon==='temettu' ? '' : para(f,'TRY',x.tur==='fon'?4:2))}</td>
+        <td class="sag sayi ${x.yon==='satis'||x.yon==='temettu'?'art':''}">${ozel ? '' :
+          (x.yon==='alis'?'−':'+') + para(tutar)}
+          ${ozel ? '' : `<div class="etk" style="font-size:11.5px">${para(tutar/k,'USD')}</div>`}</td>
+        <td class="sag sayi etk">${k>1?para(k,'TRY',2):''}</td>
+        <td class="sag"><span class="etk">düzenle ›</span></td>
+      </tr>`;
+    }).join('')}
+  </table></div></div>`;
+}
+
+function kapananTablosu(t){
+  if(!t.kapanan.length) return `<div class="kart">${bosKutu(
+    'Henüz kapanmış işlem yok. Bir satış girdiğinde gerçekleşen kâr/zarar burada listelenir.')}</div>`;
+  const yillar = {};
+  t.kapanan.forEach(k => {
+    const y = String(k.tarih).slice(0,4);
+    (yillar[y] = yillar[y] || []).push(k);
+  });
+  return Object.keys(yillar).sort().reverse().map(y => {
+    const satirlar = yillar[y];
+    const tl = satirlar.reduce((a,k) => a + k.kzTl, 0);
+    const usd = satirlar.reduce((a,k) => a + k.kzUsd, 0);
+    return `<div class="kart" style="margin-bottom:16px">
+      <div class="bas"><span>${y}</span>
+        <span class="etk">${satirlar.length} kapanış</span>
+        <span class="sayi ${tl<0?'eks':'art'}" style="font-weight:600">${tl>0?'+':''}${para(tl)}</span>
+        <span class="sayi etk">${usd>0?'+':''}${para(usd,'USD')}</span></div>
+      <div class="bkaydir"><table style="min-width:720px">
+        <tr><th>Tarih</th><th>Sembol</th><th class="sag">Adet</th>
+          <th class="sag">Maliyet</th><th class="sag">Satış</th>
+          <th class="sag">K/Z (TL)</th><th class="sag">K/Z (USD)</th></tr>
+        ${satirlar.map(k => `<tr>
+          <td>${trTarih(k.tarih)}</td>
+          <td><b>${kacir(k.sembol)}</b></td>
+          <td class="sag sayi">${say(k.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</td>
+          <td class="sag sayi">${para(k.maliyet,'TRY',k.tur==='fon'?4:2)}</td>
+          <td class="sag sayi">${para(k.fiyat,'TRY',k.tur==='fon'?4:2)}</td>
+          <td class="sag sayi ${k.kzTl<0?'eks':'art'}">${k.kzTl>0?'+':''}${para(k.kzTl)}
+            <div style="font-size:11.5px;font-weight:500">${yuzde(k.oran)}</div></td>
+          <td class="sag sayi ${k.kzUsd<0?'eks':'art'}">${k.kzUsd>0?'+':''}${para(k.kzUsd,'USD')}
+            <div style="font-size:11.5px;font-weight:500">${yuzde(k.oranUsd)}</div></td>
+        </tr>`).join('')}
+      </table></div></div>`;
+  }).join('');
 }
 
 function gorunumVarlik(){
@@ -2040,31 +2450,7 @@ function gorunumHesaplar(){
 
 function gorunumAyarlar(){
   return `
-  <div class="ust"><h1>Ayarlar</h1>
-    <span class="rozet n">${location.protocol === 'file:' ? 'Dosyadan açıldı' : 'Adresten açıldı'}</span>
-    <span class="rozet ${AYAR.saltOkunur?'':'n'}">${AYAR.saltOkunur?'Salt okunur':'Düzenlenebilir'}</span>
-    <button class="btn ikincil" data-eylem="okunurDegis">${AYAR.saltOkunur
-      ? 'Uygulamadan düzenlemeye geç' : 'Salt okunur moda geç'}</button></div>
-  ${AYAR.saltOkunur ? `<div class="kart" style="margin-bottom:16px">
-    <div class="bas"><span>Veriyi e-tabloya girmek</span></div>
-    <p>Her sayfanın ilk satırındaki başlıklar kolonları gösterir. Kimlik kolonlarına
-    kimlik yerine doğrudan ad yazabilirsin; <b>id</b> kolonunu boş bırakabilirsin.</p>
-    <table style="margin-top:10px">
-      <tr><th>Sayfa</th><th>Dikkat edilecekler</th></tr>
-      <tr><td><b>hesaplar</b></td><td>tur: vadesiz, nakit, kredi_karti, kmh, e_cuzdan, yatirim, vadeli ·
-        kart için limit, kesimGunu, sonOdemeGunu, asgariOran (0,2), faizOrani (0,0425)</td></tr>
-      <tr><td><b>kategoriler</b></td><td>yon: gider ya da gelir · alt kategoride parentId'ye ana kategorinin adını yaz</td></tr>
-      <tr><td><b>islemler</b></td><td>tur: gider, gelir, transfer · tarih: 2026-09-14 · hesapId ve kategoriId'ye ad yaz ·
-        taksitli kart alışverişinde taksitSayisi ve butceYansimasi: taksitli</td></tr>
-      <tr><td><b>butce</b></td><td>donem: 2026-09 · kategoriId'ye ana kategorinin adı</td></tr>
-      <tr><td><b>borclar / borcTaksitleri</b></td><td>tur: kredi ya da tasarruf_finansman ·
-        taksitte borcId'ye borcun adı, odendi: evet/hayir</td></tr>
-      <tr><td><b>yatirimlar</b></td><td>sembol fiyatlar sayfasındaki sembolle aynı olmalı</td></tr>
-      <tr><td><b>fiyatlar</b></td><td>tur: doviz, bist, kripto olanlara formül kurulur; elle olanları sen yazarsın</td></tr>
-    </table>
-    <p class="etk" style="margin-top:10px">Evet/hayır kolonlarına <b>evet</b> ya da <b>hayir</b> yaz.
-    Tutarlarda binlik ayracı kullanma. Değişiklikten sonra uygulamada Yenile'ye bas.</p>
-  </div>` : ''}
+  <div class="ust"><h1>Ayarlar</h1></div>
   <div class="izgara i2">
     <div class="kart">
       <div class="bas"><span>Supabase</span>
@@ -2086,58 +2472,6 @@ function gorunumAyarlar(){
         ? 'Adres ve anahtar dosyaya gömülü; her cihazda yalnızca e-posta ve parola sorulur.'
         : 'Her cihazda tekrar girmemek için bunları dosyanın başındaki VARSAYILAN_SB_URL ve VARSAYILAN_SB_KEY satırlarına yazabilirsin.'}
       Anahtar gizli değildir, satır düzeyi güvenlik sayesinde kimse başkasının verisini göremez.</p>
-    </div>
-    <div class="kart">
-      <div class="bas"><span>Google E-Tablo (okuma)</span>
-        <span class="rozet ${AYAR.mod==='tablo'?'':'n'}">${AYAR.mod==='tablo'?'etkin':'kapalı'}</span></div>
-      <div class="alan"><label>Tablo adresi ya da kimliği</label>
-        <input id="tabloGiris" value="${kacir(AYAR.tablo)}" placeholder="https://docs.google.com/spreadsheets/d/…"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" data-eylem="tabloKaydet">Bağlan ve oku</button>
-        <button class="btn ikincil" data-eylem="yenile">Yenile</button>
-      </div>
-      <p class="etk" style="margin-top:10px">Tabloda Paylaş ayarı <b>Bağlantıya sahip herkes · Görüntüleyen</b>
-      olmalı. Uygulama yalnızca okur, hiçbir şey yazmaz; kurulum ya da betik gerekmez.</p>
-    </div>
-    <div class="kart">
-      <div class="bas"><span>Veri dosyası</span>${AYAR.mod==='dosya'
-        ? `<span class="rozet ${dosyaHazir?'':'s'}">${dosyaHazir?'bağlı':'izin bekliyor'}</span>` : ''}</div>
-      ${AYAR.mod==='dosya'
-        ? `<p>Veriler <b>${kacir(AYAR.dosyaAd)}</b> dosyasına yazılıyor.${
-            dosyaHazir?'':' Tarayıcı yeniden açıldığı için bir kez izin vermen gerekiyor.'}</p>`
-        : `<p>Verileri bilgisayarındaki bir dosyada tut. Dosyayı Google Drive klasörüne
-           koyarsan Drive uygulaması onu buluta senkronlar; başka kurulum gerekmez.</p>`}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-        ${AYAR.mod==='dosya' && !dosyaHazir
-          ? `<button class="btn" data-eylem="dosyaBagla">Dosyayı bağla</button>` : ''}
-        <button class="btn ${AYAR.mod==='dosya'?'ikincil':''}" data-eylem="dosyaOlustur">Yeni veri dosyası oluştur</button>
-        <button class="btn ikincil" data-eylem="dosyaAc">Mevcut dosyayı aç</button>
-        ${AYAR.mod==='dosya'?`<button class="btn ikincil" data-eylem="zorlaKaydet">Şimdi kaydet</button>
-          <button class="btn tehlike" data-eylem="dosyaCoz">Bağlantıyı kes</button>`:''}
-      </div>
-      <p class="etk" style="margin-top:10px">${dosyaDestegi
-        ? 'Veriler aynı anda tarayıcıda da saklanır, dosya erişilemezse uygulama çalışmayı sürdürür.'
-        : 'Bu tarayıcı dosyaya yazmayı desteklemiyor. Chrome ya da Edge kullan.'}</p>
-    </div>
-    <div class="kart">
-      <div class="bas"><span>Google Sheets bağlantısı</span>
-        <span class="rozet ${SUNUCU_ICI?'':'n'}">${SUNUCU_ICI?'doğrudan bağlı':'isteğe bağlı'}</span></div>
-      ${SUNUCU_ICI ? '<p>Uygulama tablonun üzerinden çalışıyor; adres girmene gerek yok.</p>' : ''}
-      <div class="alan"><label>Apps Script web uygulaması adresi (e-tablo adresi değil)</label>
-        <input id="urlGiris" value="${kacir(AYAR.url)}" placeholder="https://script.google.com/macros/s/…/exec"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" data-eylem="urlKaydet">Bağlan ve yükle</button>
-        <button class="btn ikincil" data-eylem="yenile">Yeniden yükle</button>
-        <button class="btn ikincil" data-eylem="zorlaKaydet">Şimdi kaydet</button>
-        <button class="btn ikincil" data-eylem="baglantiSina">Bağlantıyı sına</button>
-        <button class="btn ikincil" data-eylem="tabloHazirla">Tabloyu hazırla</button>
-        ${VARSAYILAN_URL && AYAR.url !== VARSAYILAN_URL
-          ? '<button class="btn ikincil" data-eylem="gomuluAdres">Gömülü adrese dön</button>' : ''}
-      </div>
-      <p class="etk" style="margin-top:10px">Veriler aynı anda tarayıcıda da saklanır; bağlantı
-      yoksa uygulama son kopyayla çalışır ve bağlantı kurulunca kaydeder.${
-      VARSAYILAN_URL ? ' Adres dosyaya gömülü, her bilgisayarda kendiliğinden bağlanır.' :
-      ' Adresi dosyanın başındaki VARSAYILAN_URL satırına yazarsan her bilgisayarda kendiliğinden bağlanır.'}</p>
     </div>
     <div class="kart">
       <div class="bas"><span>Görünüm ve yedek</span></div>
@@ -2179,13 +2513,27 @@ function gorunumAyarlar(){
     </table>` : bosKutu('Tanımlı tekrarlayan işlem yok.')}
   </div>
   <div class="kart" style="margin-top:16px">
-    <div class="bas"><span>Fiyat ve kurlar</span>
-      <button class="btn ikincil ince" data-eylem="fiyatYenile">Sheets'ten güncelle</button></div>
+    <div class="bas"><span>Fiyat servisi</span>
+      <button class="btn ikincil ince" data-eylem="fiyatSina">Bağlantıyı sına</button>
+      <button class="btn ince" data-eylem="fiyatYenile">Şimdi güncelle</button></div>
+    <p>BIST hisseleri ve döviz Yahoo Finance üzerinden yaklaşık 15 dakika gecikmeli,
+    yatırım fonları TEFAS'tan günlük gelir.</p>
+    <p class="etk" style="margin-top:8px">Servis Supabase projende <b>fiyat</b> adlı bir Edge Function
+    olarak çalışır. Panelde Edge Functions bölümünden yayınlanır; başka bir ayar gerekmez.</p>
+  </div>
+  <div class="kart" style="margin-top:16px">
+    <div class="bas"><span>Güncel fiyatlar</span>
+      <button class="btn ikincil ince" data-eylem="fiyatEkle">Elle fiyat gir</button></div>
     ${(D.fiyatlar||[]).length ? `<table>
-      <tr><th>Sembol</th><th>Tür</th><th class="sag">TL karşılığı</th><th>Güncelleme</th></tr>
-      ${(D.fiyatlar||[]).map(f=>`<tr><td>${kacir(f.sembol)}</td><td>${kacir(f.tur)}</td>
-        <td class="sag sayi">${para(f.fiyat,'TRY',2)}</td><td class="etk">${f.guncelleme?trTarih(f.guncelleme):''}</td></tr>`).join('')}
-    </table>` : bosKutu('Fiyat satırı yok. Sheets’teki fiyatlar sayfasına sembol ekleyebilirsin.')}
+      <tr><th>Sembol</th><th>Tür</th><th class="sag">TL karşılığı</th><th>Güncelleme</th><th></th></tr>
+      ${(D.fiyatlar||[]).slice().sort((a,b)=>a.sembol<b.sembol?-1:1).map(f=>`<tr>
+        <td><b>${kacir(f.sembol)}</b>${f.ad?`<br><small class="etk">${kacir(f.ad)}</small>`:''}</td>
+        <td>${kacir({bist:'BIST',fon:'Fon',doviz:'Döviz',elle:'Elle'}[f.tur]||f.tur)}</td>
+        <td class="sag sayi">${para(f.fiyat,'TRY', f.tur==='fon'?4:2)}</td>
+        <td class="etk">${f.guncelleme?trTarih(f.guncelleme):''}</td>
+        <td class="sag"><button class="btn ikincil ince" data-eylem="fiyatEkle"
+          data-sembol="${kacir(f.sembol)}">Düzenle</button></td></tr>`).join('')}
+    </table>` : bosKutu('Fiyat yok. Yatırımlar sayfasından “Fiyatları güncelle” diyebilirsin.')}
   </div>`;
 }
 
@@ -2696,6 +3044,99 @@ function yatirimFormu(mevcut){
     }});
 }
 
+function tradeFormu(mevcut, onYon, onSembol){
+  const semboller = [...new Set((D.trades||[]).map(t => String(t.sembol||'').toUpperCase()))]
+    .filter(Boolean).sort();
+  const alanlar = [
+    {ad:'yon', etiket:'İşlem', tip:'secim', on: onYon || 'alis', secenekler:[
+      {v:'alis',a:'Alış'},{v:'satis',a:'Satış'},{v:'temettu',a:'Temettü'},
+      {v:'bedelsiz',a:'Bedelsiz'},{v:'bolunme',a:'Bölünme'}]},
+    {ad:'tur', etiket:'Tür', tip:'secim', on:'hisse',
+      secenekler:[{v:'hisse',a:'BIST hisse'},{v:'fon',a:'Yatırım fonu'}]},
+    {ad:'sembol', etiket:'Sembol', tip:'metin', ipucu:'THYAO, AFA, TTE…', on: onSembol || ''},
+    {ad:'ad', etiket:'Adı (isteğe bağlı)', tip:'metin'},
+    {ad:'tarih', etiket:'Tarih', tip:'tarih', on: ymd(bugun())},
+    {ad:'adet', etiket:'Adet', tip:'sayi',
+      gorunur: v => v.yon === 'alis' || v.yon === 'satis'},
+    {ad:'fiyat', etiket:'Birim fiyat', tip:'sayi',
+      gorunur: v => v.yon === 'alis' || v.yon === 'satis'},
+    {ad:'fiyat2', etiket:'Brüt temettü tutarı', tip:'sayi',
+      gorunur: v => v.yon === 'temettu'},
+    {ad:'stopaj', etiket:'Stopaj', tip:'sayi',
+      gorunur: v => v.yon === 'temettu'},
+    {ad:'oran', etiket:'Bedelsiz oranı (0,5 = %50)', tip:'sayi',
+      gorunur: v => v.yon === 'bedelsiz'},
+    {ad:'oran2', etiket:'Bölünme çarpanı (2 = pay ikiye bölündü)', tip:'sayi',
+      gorunur: v => v.yon === 'bolunme'},
+    {ad:'usdKuru', etiket:'İşlem günü USD kuru', tip:'sayi'},
+    {ad:'not', etiket:'Not', tip:'metin'}
+  ];
+  const deger = mevcut ? {...mevcut, fiyat2: mevcut.fiyat, oran2: mevcut.oran} : {};
+  if(onSembol && !mevcut){
+    const p = pozisyonHesapla(onSembol);
+    deger.tur = p.tur; deger.ad = p.ad;
+    if(onYon === 'satis') deger.adet = p.adet;
+  }
+
+  formAc({
+    baslik: mevcut ? 'İşlemi düzenle' : 'Yeni işlem',
+    alanlar, deger,
+    ekAlt: `<p class="etk" style="margin-top:-4px">Kuru boş bırakırsan işlem tarihine ait
+      USD/TRY kuru otomatik bulunur. Dolar bazlı kâr/zarar bu kurla hesaplanır.</p>
+      ${semboller.length ? `<div class="etiketler">${semboller.slice(0,14).map(x =>
+        `<button type="button" class="eticip" data-sembolsec="${kacir(x)}">${kacir(x)}</button>`).join('')}</div>` : ''}`,
+    sil: mevcut ? () => { D.trades = (D.trades||[]).filter(x => x.id !== mevcut.id); isaretle('trades'); } : null,
+    dogrula: v => {
+      if(!String(v.sembol||'').trim()) return 'Sembol boş olamaz.';
+      if((v.yon === 'alis' || v.yon === 'satis')){
+        if(say(v.adet) <= 0) return 'Adet sıfırdan büyük olmalı.';
+        if(say(v.fiyat) <= 0) return 'Birim fiyat sıfırdan büyük olmalı.';
+        if(v.yon === 'satis'){
+          const p = pozisyonHesapla(v.sembol);
+          const elde = mevcut && mevcut.yon === 'satis' ? p.adet + say(mevcut.adet) : p.adet;
+          if(say(v.adet) > elde + 0.0000001)
+            return 'Elinde ' + elde.toLocaleString('tr-TR') + ' adet var, daha fazlasını satamazsın.';
+        }
+      }
+      if(v.yon === 'temettu' && say(v.fiyat2) <= 0) return 'Temettü tutarı girilmeli.';
+      if(v.yon === 'bedelsiz' && say(v.oran) <= 0) return 'Bedelsiz oranı girilmeli.';
+      if(v.yon === 'bolunme' && say(v.oran2) <= 0) return 'Bölünme çarpanı girilmeli.';
+      return '';
+    },
+    kaydet: async v => {
+      const yon = v.yon;
+      const kayit = {
+        id: mevcut ? mevcut.id : uid(),
+        tarih: v.tarih,
+        sembol: String(v.sembol||'').trim().toUpperCase(),
+        ad: v.ad || '',
+        tur: v.tur || 'hisse',
+        yon,
+        adet: (yon === 'alis' || yon === 'satis') ? say(v.adet) : '',
+        fiyat: yon === 'temettu' ? say(v.fiyat2)
+             : ((yon === 'alis' || yon === 'satis') ? say(v.fiyat) : ''),
+        stopaj: yon === 'temettu' ? say(v.stopaj) : '',
+        oran: yon === 'bedelsiz' ? say(v.oran) : (yon === 'bolunme' ? say(v.oran2) : ''),
+        usdKuru: say(v.usdKuru),
+        not: v.not || ''
+      };
+      if(mevcut) D.trades = (D.trades||[]).map(x => x.id === kayit.id ? kayit : x);
+      else (D.trades = D.trades||[]).push(kayit);
+      isaretle('trades');
+      ciz();
+      if(!kayit.usdKuru){
+        const k = await gunlukKur(kayit.tarih);
+        if(k > 0){
+          D.trades = D.trades.map(x => x.id === kayit.id ? {...x, usdKuru:k} : x);
+          isaretle('trades'); ciz();
+        } else {
+          bildir('İşlem kaydedildi. O günün kuru bulunamadı, güncel kur kullanılıyor.');
+        }
+      }
+    }
+  });
+}
+
 function varlikFormu(mevcut){
   formAc({baslik: mevcut?'Varlığı düzenle':'Yeni varlık',
     alanlar:[
@@ -2869,6 +3310,7 @@ function yonlendir(){
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
   'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
+  'yatFiltre','yatSayfa','fiyatSina',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -2959,9 +3401,39 @@ document.addEventListener('click', ev => {
     kisiEkle: () => kisiFormu(),
     kisiBorcEkle: kisiBorcFormu,
     kisiOdeme: () => kisiOdeme(id),
+    tradeEkle: () => tradeFormu(null, el.dataset.yon, el.dataset.sembol),
+    tradeAc: () => tradeFormu((D.trades||[]).find(x => x.id === id)),
+    yatFiltre: () => { yatFiltre = el.dataset.v; ciz(); },
+    yatSayfa: () => { yatSayfa = el.dataset.v; ciz(); },
     yatirimEkle: () => yatirimFormu(),
     yatirimDuzenle: () => yatirimFormu((D.yatirimlar||[]).find(x=>x.id===id)),
-    fiyatYenile: fiyatlariTazele,
+    fiyatYenile: () => fiyatlariTazele(),
+    fiyatSina: async () => {
+      try{
+        const j = await fiyatIstek({action:'ping'});
+        alert(j && j.ok ? 'Fiyat servisi çalışıyor.\nSunucu zamanı: ' + (j.zaman||'')
+          : 'Servis yanıt verdi ama hata döndü: ' + ((j&&j.hata)||'bilinmiyor'));
+      }catch(e){ alert('Servise ulaşılamadı: ' + e.message); }
+    },
+    fiyatEkle: () => {
+      const kod = el.dataset.sembol || '';
+      const mevcut = (D.fiyatlar||[]).find(f => f.sembol === kod);
+      formAc({
+        baslik: mevcut ? kod + ' fiyatı' : 'Elle fiyat gir',
+        alanlar:[
+          {ad:'sembol', etiket:'Sembol', tip:'metin', on: kod},
+          {ad:'fiyat', etiket:'TL karşılığı', tip:'sayi', on: mevcut ? mevcut.fiyat : ''}],
+        sil: mevcut ? () => { D.fiyatlar = D.fiyatlar.filter(f => f.sembol !== kod); isaretle('fiyatlar'); } : null,
+        kaydet: v => {
+          const sembol = String(v.sembol||'').trim().toUpperCase();
+          if(!sembol) return;
+          D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== sembol);
+          D.fiyatlar.push({sembol, tur: mevcut ? mevcut.tur : 'elle', fiyat: say(v.fiyat),
+            guncelleme: ymd(bugun()), zaman: new Date().toISOString(), ad: mevcut ? mevcut.ad : ''});
+          isaretle('fiyatlar');
+        }
+      });
+    },
     varlikEkle: () => varlikFormu(),
     varlikDuzenle: () => varlikFormu((D.varliklar||[]).find(x=>x.id===id)),
     kategoriEkle: () => kategoriFormu(),
