@@ -1064,8 +1064,11 @@ async function fiyatlariTazele({sessiz=false}={}){
     const sayi = Object.keys(gelen).length;
     durumYaz(sayi + ' fiyat güncellendi', 'ok');
     const eksik = (j.eksik || []);
-    if(!sessiz && eksik.length)
-      bildir(eksik.join(', ') + ' için fiyat bulunamadı. Sembolü kontrol et ya da elle gir.');
+    if(!sessiz && eksik.length){
+      const kisa = eksik.slice(0, 6).join(', ') + (eksik.length > 6 ? ' ve ' + (eksik.length-6) + ' tane daha' : '');
+      bildir(eksik.length + ' sembolde fiyat yok: ' + kisa +
+        ' — Ayarlar > Eksikleri incele ile sebebini görebilirsin.');
+    }
     else if(!sessiz && !sayi) bildir('Servis çalıştı ama fiyat dönmedi.');
     ciz();
   }catch(e){
@@ -2749,6 +2752,7 @@ function gorunumAyarlar(){
   <div class="kart" style="margin-top:16px">
     <div class="bas"><span>Fiyat servisi</span>
       <button class="btn ikincil ince" data-eylem="fiyatSina">Bağlantıyı sına</button>
+      <button class="btn ikincil ince" data-eylem="fiyatIncele">Eksikleri incele</button>
       <button class="btn ince" data-eylem="fiyatYenile">Şimdi güncelle</button></div>
     <p>BIST hisseleri ve döviz Yahoo Finance üzerinden yaklaşık 15 dakika gecikmeli,
     yatırım fonları TEFAS'tan günlük gelir.</p>
@@ -3784,7 +3788,7 @@ function yonlendir(){
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
   'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
-  'yatFiltre','yatSayfa','fiyatSina','tradeDisaAktar',
+  'yatFiltre','yatSayfa','fiyatSina','fiyatIncele','tradeDisaAktar',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -3924,6 +3928,38 @@ document.addEventListener('click', ev => {
         satir.push('\nFonksiyon hata verdi. Supabase > Edge Functions > fiyat > Logs bölümüne bak.');
       }
       alert(satir.join('\n'));
+    },
+    fiyatIncele: async () => {
+      const sem = izlenenSemboller();
+      const eksikB = sem.bist.filter(x => !(fiyatBul(x) > 0));
+      const eksikF = sem.fon.filter(x => !(fiyatBul(x) > 0));
+      const eksikD = sem.doviz.filter(x => x !== 'TRY' && !(fiyatBul(x) > 0));
+      if(!eksikB.length && !eksikF.length && !eksikD.length)
+        return bildir('Tüm sembollerin fiyatı var.');
+      durumYaz('Eksikler inceleniyor…');
+      try{
+        const j = await fiyatIstek({bist:eksikB.join(','), fon:eksikF.join(','),
+          doviz:eksikD.join(','), tani:'1'});
+        const t = (j && j.tani) || {};
+        const satir = ['Eksik fiyatlar inceleniyor — her sembol için denenen kaynaklar:', ''];
+        Object.keys(t).forEach(k => satir.push(k + ': ' + (t[k]||[]).join('  →  ')));
+        if(j && j.veri && Object.keys(j.veri).length){
+          satir.push('', 'Bu denemede gelenler: ' + Object.keys(j.veri).join(', '));
+          const simdi = new Date().toISOString();
+          Object.keys(j.veri).forEach(kod => {
+            const g = j.veri[kod];
+            D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== kod);
+            D.fiyatlar.push({sembol:kod, tur:g.tur||'elle', fiyat:say(g.fiyat),
+              guncelleme:g.tarih||simdi.slice(0,10), zaman:simdi, ad:g.ad||''});
+          });
+          isaretle('fiyatlar'); ciz();
+        }
+        durumYaz('İnceleme bitti', 'ok');
+        alert(satir.join('\n'));
+      }catch(e){
+        durumYaz('İncelenemedi', 'hata');
+        alert('İncelenemedi: ' + e.message);
+      }
     },
     fiyatEkle: () => {
       const kod = el.dataset.sembol || '';
