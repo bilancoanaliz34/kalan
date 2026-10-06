@@ -56,6 +56,7 @@ a{color:var(--marka)}
 .izgara{display:grid;gap:16px}
 .i2{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
 .i3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.i4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 .bas{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .bas > span:first-of-type{flex:1}
 .etk{font-size:12.5px;color:var(--mut)}
@@ -123,6 +124,11 @@ td.sag,th.sag{text-align:right}
   color:var(--mut);border-radius:0}
 .arakutu button:hover{color:var(--ink)}
 .arabos{padding:18px;text-align:center;color:var(--mut);font-size:14px}
+.fiyatd{font:inherit;color:inherit;padding:1px 4px;margin:-1px -4px;border-radius:7px;
+  border-bottom:1px dashed var(--cizgi)}
+.fiyatd:hover{background:var(--cizgi2);border-bottom-color:var(--marka2)}
+.kilitk{font-size:10.5px;font-weight:500;color:var(--mut);background:var(--cizgi2);
+  padding:1px 5px;border-radius:7px;vertical-align:1px}
 .arasag{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 @media(max-width:720px){
   .arasag{margin-left:0;width:100%;margin-top:4px}
@@ -190,6 +196,41 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
   background:var(--cizgi2);color:var(--mut)}
 .sirasec button:hover{color:var(--ink)}
 .sirasec button.on{background:var(--acik);color:var(--marka);font-weight:500}
+
+/* Kripto kademe sayfası */
+.krcanli{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;
+  color:var(--mut);background:var(--cizgi2);padding:5px 11px;border-radius:18px}
+.krcanli i{width:8px;height:8px;border-radius:50%;background:var(--kirmizi);flex:none}
+.krcanli.acik i{background:var(--yesil);box-shadow:0 0 0 3px var(--acik)}
+.krcanli.sorgu i{background:var(--sari)}
+.krtetik{background:var(--sariZ);border:1px solid var(--sari);border-radius:14px;
+  padding:12px 14px;margin-bottom:16px}
+.krtetik .bas > span:first-of-type{color:var(--sariY);font-weight:600}
+.krtlist{display:flex;flex-wrap:wrap;gap:8px}
+.krtitem{display:inline-flex;align-items:center;gap:8px;background:var(--yzy);
+  border:1px solid var(--cizgi);border-radius:10px;padding:5px 6px 5px 11px;font-size:13px}
+.krbar{position:relative;height:12px;border-radius:7px;background:var(--cizgi2);
+  border:1px solid var(--cizgi);overflow:hidden;margin:4px 0 10px}
+.krbar i{position:absolute;inset:0 auto 0 0;background:var(--marka2)}
+.krbar b{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.5}
+.krlegend{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:12.5px;color:var(--mut)}
+.uyarit{color:var(--sariY);font-weight:500}
+.krsatir{cursor:pointer}
+.krsatir:hover td{background:var(--cizgi2)}
+.krsatir.secili td{background:var(--acik)}
+.krnokta{display:inline-flex;gap:3px}
+.krnokta span{width:9px;height:9px;border-radius:2px;border:1px solid var(--cizgi);background:var(--cizgi2)}
+.krnokta span.dolu{background:var(--marka2);border-color:var(--marka2)}
+.krnokta span.yari{background:linear-gradient(90deg,var(--marka2) 50%,var(--cizgi2) 50%);border-color:var(--marka2)}
+.krcipler{display:flex;flex-wrap:wrap;gap:5px}
+.krcip{font-family:inherit;font-size:12.5px;font-variant-numeric:tabular-nums;padding:4px 9px;
+  border-radius:9px;border:1px solid var(--cizgi);background:var(--cizgi2);color:var(--ink)}
+.krcip:hover{border-color:var(--marka2)}
+.krcip.ulasti{border-color:var(--sari);background:var(--sariZ);color:var(--sariY);font-weight:600}
+.krcip.geri{border-color:var(--marka2)}
+.krcip.satildi{color:var(--mut);text-decoration:line-through;background:none;border-style:dashed;cursor:default}
+td.krsatis{white-space:normal;min-width:240px}
+.btn.ince.tehlike{background:var(--kirmiziZ);color:var(--kirmiziY)}
 .sbas{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .sbas b{font-size:16px;font-weight:600}
 .sgovde{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
@@ -237,6 +278,7 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
     <a class="sek" data-git="kisiler" href="#kisiler"><svg><use href="#s-user"/></svg>Borç-alacak</a>
     <a class="sek" data-git="yatirim" href="#yatirim"><svg><use href="#s-chart"/></svg>Yatırımlar</a>
     <a class="sek" data-git="emirler" href="#emirler"><svg><use href="#s-bell"/></svg>Emirler</a>
+    <a class="sek" data-git="kripto" href="#kripto"><svg><use href="#s-coin"/></svg>Kripto</a>
     <a class="sek" data-git="varlik" href="#varlik"><svg><use href="#s-home2"/></svg>Varlıklar</a>
     <a class="sek" data-git="ayarlar" href="#ayarlar"><svg><use href="#s-cog"/></svg>Ayarlar</a>
     <div class="bosluk"></div>
@@ -261,6 +303,7 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
   <symbol id="s-cog" viewBox="0 0 24 24"><circle class="ic" cx="12" cy="12" r="3"/><path class="ic" d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.5 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 13.6H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.7 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9.4a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></symbol>
   <symbol id="s-plus" viewBox="0 0 24 24"><path class="ic" d="M12 5v14M5 12h14" style="stroke-width:2.2"/></symbol>
   <symbol id="s-sync" viewBox="0 0 24 24"><path class="ic" d="M20 11a8 8 0 0 0-14-4M4 13a8 8 0 0 0 14 4"/><path class="ic" d="M4 5v5h5M20 19v-5h-5"/></symbol>
+  <symbol id="s-coin" viewBox="0 0 24 24"><ellipse class="ic" cx="12" cy="7" rx="7.5" ry="3.2"/><path class="ic" d="M4.5 7v10c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2V7"/><path class="ic" d="M4.5 12c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2"/></symbol>
   <symbol id="s-ara" viewBox="0 0 24 24"><circle class="ic" cx="11" cy="11" r="6.5"/><path class="ic" d="M16 16l4.5 4.5"/></symbol>
 </svg>
 <script>
@@ -287,7 +330,8 @@ const VARSAYILAN_URL = 'https://script.google.com/macros/s/AKfycbwwf6cYDGqb6l6kn
 
 const TABLOLAR = ['ayarlar','hesaplar','kategoriler','islemler','butce','borclar','trades','emirKurallari',
   'borcTaksitleri','ekstreler','kisiler','kisiBorclari','tekrarlayanlar',
-  'yatirimlar','varliklar','fiyatlar','anlikGoruntu'];
+  'yatirimlar','varliklar','fiyatlar','anlikGoruntu',
+  'kriptoAyar','kriptoCoinler','kriptoKapanan','kriptoIslem'];
 
 let D = {};                    // veri
 let AYAR = { url:'', tablo:'', sbUrl:'', sbKey:'', sonHesap:'', tema:'sistem', mod:'supabase', dosyaAd:'', saltOkunur:false };
@@ -1164,6 +1208,7 @@ async function fiyatGrubuAl(is, simdi){
     Object.keys(v).forEach(kod => {
       const g = v[kod];
       if(!(say(g.fiyat) > 0)) return;
+      if(elleKorunan(kod)) return;        // fon ve kilitli fiyatlara dokunulmaz
       const eski = (D.fiyatlar||[]).find(f => f.sembol === kod) || {};
       D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== kod);
       D.fiyatlar.push({sembol:kod, tur:g.tur || eski.tur || 'elle', fiyat: say(g.fiyat),
@@ -1659,6 +1704,27 @@ function sembolParaBirimi(sembol){
 
 /* Fiyatları elle girilen türler — otomatik servise sorulmaz */
 function elleFiyatMi(tur){ return tur === 'fon'; }
+
+/* Otomatik güncellemenin üzerine yazmayacağı fiyatlar:
+   · fonlar (her zaman elle)
+   · kullanıcının kilitlediği satırlar
+   Bu kontrol, sembol yanlışlıkla otomatik listeye düşse bile elle girilen
+   fiyatın silinmemesini sağlar. */
+/* Satırda küçük bir "kilitli" işareti göstermek için */
+function fiyatKilitli(sembol){
+  const f = (D.fiyatlar||[]).find(x =>
+    String(x.sembol||'').toUpperCase() === String(sembol||'').toUpperCase());
+  return !!(f && bool(f.kilit) && f.tur !== 'fon');
+}
+
+function elleKorunan(sembol){
+  const s = String(sembol||'').toUpperCase();
+  const f = (D.fiyatlar||[]).find(x => String(x.sembol||'').toUpperCase() === s);
+  if(f && (f.tur === 'fon' || bool(f.kilit))) return true;
+  // fiyat satırı henüz yoksa işlem türüne bak
+  return (D.trades||[]).some(t =>
+    String(t.sembol||'').toUpperCase() === s && t.tur === 'fon');
+}
 
 /* Bir sembolün tüm hareketlerini sırayla işler */
 /* Aynı gün içindeki işlemlerin işlenme sırası. Gün içinde alıp satmak sık
@@ -2775,8 +2841,10 @@ function pozisyonTablosu(t){
       <td class="sag sayi ${p.temettuTl>0?'art':'etk'}">${p.temettuTl>0
         ? para(p.temettuTl) + `<div class="etk" style="font-size:11.5px">${para(p.temettuUsd,'USD')}</div>` : '—'}</td>
       <td class="sag sayi">${p.fiyat>0
-        ? para(p.fiyat, p.paraBirimi, p.tur==='fon'?4:2) + (p.paraBirimi==='USD'
-            ? `<div class="etk" style="font-size:11.5px">${para(p.fiyatTl,'TRY',2)}</div>` : '')
+        ? `<button class="fiyatd" data-eylem="fiyatEkle" data-sembol="${kacir(p.sembol)}"
+             title="Fiyatı elle düzelt">${para(p.fiyat, p.paraBirimi, p.tur==='fon'?4:2)}${
+             fiyatKilitli(p.sembol) ? ' <span class="kilitk">kilitli</span>' : ''}</button>${
+           p.paraBirimi==='USD' ? `<div class="etk" style="font-size:11.5px">${para(p.fiyatTl,'TRY',2)}</div>` : ''}`
         : `<button class="btn ikincil ince" data-eylem="fiyatEkle" data-sembol="${kacir(p.sembol)}"
             title="Fiyatı elle gir">fiyat gir</button>`}</td>
       <td class="sag sayi">${p.fiyat>0 ? para(p.deger) +
@@ -4235,10 +4303,828 @@ function iceAktar(){
    YÖNLENDİRME VE OLAYLAR
    =================================================================== */
 
+/* ===================================================================
+   KRİPTO — KADEME (GRID) TAKİBİ
+   Binance Futures'ta kademeli alım merdiveni: her kademe dolunca
+   üstüne satış emirleri açılır, satılan parça geri alım emrine döner.
+   Ortak (cross) margin hesabı, kapanan pozisyonlar ve işlem günlüğü.
+
+   Veri Supabase'de tutulur:
+     kriptoAyar    — tek satır: sermaye, kaldıraç, bakım marjı, seçili coin
+     kriptoCoinler — coin tanımları, kademeler ve dolum durumu
+     kriptoKapanan — kapatılmış pozisyonlar
+     kriptoIslem   — işlem günlüğü
+   =================================================================== */
+
+const KR_COIN_ORNEK = [
+  {sym:'BTC', dir:'L', fsym:'BTCUSDT', pdiv:1,
+   tiers:[[86600,.001],[86400,.001],[86000,.002],[85200,.004],[83600,.008],[80400,.016],[74000,.032]]},
+  {sym:'ETH', dir:'S', fsym:'ETHUSDT', pdiv:1,
+   tiers:[[2660,.03],[2670,.03],[2690,.06],[2730,.12],[2810,.24],[2970,.48],[3290,.96]]},
+  {sym:'SOL', dir:'L', fsym:'SOLUSDT', pdiv:1,
+   tiers:[[122.5,.7],[122,.7],[121,1.4],[119,2.8],[115,5.6],[107,11.2],[91,22.4]]}
+];
+
+const KR_AYAR_ON = {sermaye:3000, kaldirac:20, bakimOran:0.5, secili:0};
+
+function krAyar(){
+  const a = (D.kriptoAyar || [])[0] || {};
+  return {
+    sermaye: say(a.sermaye) || KR_AYAR_ON.sermaye,
+    kaldirac: say(a.kaldirac) || KR_AYAR_ON.kaldirac,
+    bakimOran: a.bakimOran === undefined || a.bakimOran === '' ? KR_AYAR_ON.bakimOran : say(a.bakimOran),
+    secili: Math.max(0, say(a.secili) || 0)
+  };
+}
+function krAyarYaz(yeni){
+  D.kriptoAyar = [{...krAyar(), ...yeni}];
+  isaretle('kriptoAyar');
+}
+function krCoinler(){ return D.kriptoCoinler || (D.kriptoCoinler = []); }
+function krSecili(){
+  const c = krCoinler();
+  if(!c.length) return null;
+  return c[Math.min(krAyar().secili, c.length - 1)];
+}
+
+/* ---------- sayı yardımcıları ---------- */
+function krBasamak(n){
+  if(!isFinite(n)) return 0;
+  const s = String(n);
+  if(s.includes('e-')){ const [a,b] = s.split('e-'); return parseInt(b) + ((a.split('.')[1]||'').length); }
+  return (s.split('.')[1] || '').length;
+}
+const krYuvarla = (v, d) => { const f = Math.pow(10, d); return Math.round(v * f) / f; };
+const krNf = (v, d) => Number(v||0).toLocaleString('tr-TR',{minimumFractionDigits:d, maximumFractionDigits:d});
+const krUsd = v => krNf(v, 2);
+const krImza = v => (say(v) > 0.004 ? '+' : '') + krUsd(v);
+const krSinif = v => say(v) > 0.0049 ? 'art' : (say(v) < -0.0049 ? 'eks' : '');
+const krP  = (v,m) => krNf(v, m.dec);
+const krPX = (v,m) => krNf(v, Math.min(m.dec + 1, 8));
+const krQ  = (v,m) => krNf(v, Math.min(m.qdec, 8));
+const krYuzde = v => v == null ? '–' : (v > 0 ? '+' : '') + krNf(v, 2) + '%';
+
+/* ---------- kademe çekirdeği ---------- */
+function krMeta(c){
+  const t = c.tiers || [];
+  const dec  = t.reduce((m,x) => Math.max(m, krBasamak(x[0])), 0);
+  const qdec = t.reduce((m,x) => Math.max(m, krBasamak(x[1])), 0);
+  const step = t.length > 1 ? krYuvarla(Math.abs(t[0][0] - t[1][0]), dec + 2) : 0;
+  return {dec, qdec, step, unit: t.length ? t[0][1] : 0, sg: c.dir === 'L' ? 1 : -1};
+}
+/* Kademe i: kaç parçaya bölünür, parça adedi, k. parçanın satış fiyatı */
+function krPlan(c, i, m){
+  const [p,q] = c.tiers[i];
+  if(i === 0 || !m.unit || !m.step) return {n:1, chunk:q, sp:()=>null};
+  const n = Math.max(1, Math.round(q / m.unit));
+  return {n, chunk: q/n, sp: k => krYuvarla(p + m.sg * (k+1) * m.step, m.dec + 2)};
+}
+function krDurumKur(c){
+  const m = krMeta(c);
+  if(!Array.isArray(c.st)) c.st = [];
+  c.st.length = (c.tiers||[]).length;
+  for(let i = 0; i < (c.tiers||[]).length; i++){
+    let s = c.st[i];
+    if(!s || typeof s !== 'object') s = {b:false, ch:[]};
+    if(!Array.isArray(s.ch)) s.ch = [];
+    const {n} = krPlan(c, i, m);
+    if(s.b && s.ch.length !== n){      // kademe adedi değiştiyse parçaları yeniden kur
+      const elde = s.ch.filter(x => x.h);
+      const e = elde.length ? elde.reduce((a,x) => a + x.e, 0) / elde.length : c.tiers[i][0];
+      s.ch = Array.from({length:n}, () => ({h:true, e}));
+    }
+    c.st[i] = s;
+  }
+}
+const KR_FIYAT = {};             // Binance'ten gelen canlı fiyatlar
+function krFiyatOku(c){
+  const elle = parseFloat(c.manual);
+  if(elle > 0) return {p: elle, src: 'elle'};
+  const lp = c.fsym && KR_FIYAT[c.fsym];
+  return lp ? {p: lp / (say(c.pdiv) || 1), src: 'canlı'} : {p: null, src: ''};
+}
+function krOlcekBozuk(c, px){
+  if(!px || !(c.tiers||[]).length) return false;
+  const r = px / c.tiers[0][0];
+  return r > 4 || r < 0.25;
+}
+function krUlasti(o, px, sg){
+  if(o._bad || px == null) return false;
+  const alisTarafi = o.type !== 'sell';
+  const altBekle = (alisTarafi && sg > 0) || (!alisTarafi && sg < 0);
+  return altBekle ? px <= o.p : px >= o.p;
+}
+
+function krHesapla(c){
+  krDurumKur(c);
+  const A = krAyar();
+  const m = krMeta(c), {p:px, src} = krFiyatOku(c);
+  let qty = 0, cost = 0, maxQ = 0, maxCost = 0, filled = 0, part = 0;
+  const orders = [];
+  const rows = (c.tiers||[]).map((t,i) => {
+    const [p,q] = t, st = c.st[i], pl = krPlan(c, i, m);
+    maxQ += q; maxCost += p * q;
+    let hq = 0, hc = 0, sold = 0;
+    if(!st.b){ orders.push({type:'buy', tier:i, p, q}); }
+    else {
+      filled++;
+      st.ch.forEach((ch,k) => {
+        if(ch.h){
+          hq += pl.chunk; hc += pl.chunk * ch.e;
+          if(i > 0) orders.push({type:'sell', tier:i, k, p: pl.sp(k), q: pl.chunk});
+        } else sold++;
+      });
+      if(sold){ part++; orders.push({type:'rebuy', tier:i, p, q: sold*pl.chunk, cnt:sold, chunk:pl.chunk}); }
+    }
+    qty += hq; cost += hc;
+    return {p, q, st, pl, hq, hc, sold, avg: hq ? hc/hq : 0};
+  });
+  const bad = krOlcekBozuk(c, px);
+  orders.forEach(o => { o._bad = bad; o.hit = krUlasti(o, px, m.sg); o.dist = px ? (o.p - px)/px*100 : null; });
+  const avg = qty ? cost/qty : 0;
+  const notional = px ? qty*px : cost;
+  const upnl = px && qty ? m.sg * (px - avg) * qty : 0;
+  return {bad, m, rows, orders, qty, cost, avg, notional, upnl, px, src, filled, part, maxQ, maxCost,
+    real: say(c.real),
+    margin: notional / A.kaldirac, mm: notional * A.bakimOran / 100,
+    maxMargin: maxCost / A.kaldirac, maxAvg: maxQ ? maxCost/maxQ : 0};
+}
+
+/* ---------- merdiven kurulumu ----------
+   Fiyat ofseti = aralık × (2^i − 1); adet: K1 = K2 = birim, sonra her kademe ikiye katlanır */
+function krMerdiven(c, start, step, unit, n, mode){
+  const sg = c.dir === 'L' ? 1 : -1;
+  if(mode === 'kaydir'){
+    const m = krMeta(c), d = start - c.tiers[0][0], dec = Math.max(krBasamak(start), m.dec);
+    return c.tiers.map(([p,q]) => [krYuvarla(p + d, dec), q]);
+  }
+  const dec = Math.max(krBasamak(start), krBasamak(step)), qd = krBasamak(unit);
+  const out = [];
+  for(let i = 0; i < n; i++)
+    out.push([krYuvarla(start - sg*step*(Math.pow(2,i)-1), dec),
+              krYuvarla(i === 0 ? unit : unit*Math.pow(2,i-1), qd)]);
+  return out;
+}
+function krMerdivenDenetle(c, g){
+  if(!(g.start > 0)) return 'Başlangıç fiyatı gir.';
+  if(g.mode === 'kaydir'){
+    if(!(c.tiers||[]).length) return 'Kaydırmak için mevcut kademe yok, “Formülle kur” seç.';
+  } else {
+    if(!(g.step > 0)) return 'Kademe aralığı gir.';
+    if(!(g.unit > 0)) return 'Birim adet gir.';
+    if(!(g.n >= 2 && g.n <= 15)) return 'Kademe sayısı 2 ile 15 arasında olmalı.';
+  }
+  const t = krMerdiven(c, g.start, g.step, g.unit, g.n, g.mode);
+  if(t.some(x => !(x[0] > 0)))
+    return 'Bu aralıkla alt kademeler sıfırın altına iniyor. Aralığı ya da kademe sayısını küçült.';
+  return t;
+}
+
+/* ---------- işlemler ---------- */
+let KR_GERI = [];                 // geri alma yığını (yalnızca bu oturumda)
+function krYedekle(){
+  KR_GERI.push(JSON.stringify({
+    coinler: krCoinler(), islem: D.kriptoIslem||[], kapanan: D.kriptoKapanan||[]}));
+  if(KR_GERI.length > 25) KR_GERI.shift();
+}
+function krGeriAl(){
+  const u = KR_GERI.pop();
+  if(!u) return bildir('Geri alınacak işlem yok.');
+  const o = JSON.parse(u);
+  D.kriptoCoinler = o.coinler; D.kriptoIslem = o.islem; D.kriptoKapanan = o.kapanan;
+  isaretle('kriptoCoinler','kriptoIslem','kriptoKapanan');
+  ciz(); bildir('Son işlem geri alındı.');
+}
+function krLog(c, kind, tier, qty, planned, actual, pnl){
+  (D.kriptoIslem = D.kriptoIslem || []).unshift({
+    id: uid(), t: Date.now(), sym: c.sym, dir: c.dir, kind,
+    tier: tier + 1, qty, planned, actual, pnl: pnl || 0});
+  if(D.kriptoIslem.length > 400) D.kriptoIslem.length = 400;
+}
+function krAlisDoldu(c, i, actual){
+  const m = krMeta(c), pl = krPlan(c, i, m), st = c.st[i];
+  krYedekle();
+  if(!c.st.some(x => x && x.b)) c.openedAt = c.openedAt || Date.now();
+  st.b = true; st.ch = Array.from({length: pl.n}, () => ({h:true, e:actual}));
+  krLog(c, 'buy', i, c.tiers[i][1], c.tiers[i][0], actual, 0);
+}
+function krSatisDoldu(c, i, k, actual){
+  const m = krMeta(c), pl = krPlan(c, i, m), ch = c.st[i].ch[k];
+  krYedekle();
+  const pnl = m.sg * (actual - ch.e) * pl.chunk;
+  ch.h = false; ch.sp = actual;
+  c.real = say(c.real) + pnl; c.trades = say(c.trades) + 1;
+  krLog(c, 'sell', i, pl.chunk, pl.sp(k), actual, pnl);
+}
+function krGeriAlimDoldu(c, i, cnt, actual){
+  const m = krMeta(c), pl = krPlan(c, i, m), st = c.st[i];
+  krYedekle();
+  let kalan = cnt;
+  st.ch.forEach(ch => { if(kalan > 0 && !ch.h){ ch.h = true; ch.e = actual; delete ch.sp; kalan--; } });
+  krLog(c, 'rebuy', i, cnt * pl.chunk, c.tiers[i][0], actual, 0);
+}
+function krPozisyonKapat(c, actual){
+  const r = krHesapla(c), m = r.m;
+  krYedekle();
+  const closePnl = r.qty ? m.sg * (actual - r.avg) * r.qty : 0;
+  const grid = say(c.real);
+  (D.kriptoKapanan = D.kriptoKapanan || []).unshift({
+    id: uid(), sym: c.sym, dir: c.dir, opened: c.openedAt || null, closed: Date.now(),
+    qty: r.qty, avg: r.avg, close: actual, cost: r.cost, tiers: r.filled, trades: say(c.trades),
+    closePnl, grid, total: closePnl + grid, dec: m.dec, qdec: m.qdec});
+  krLog(c, 'close', -1, r.qty, r.avg, actual, closePnl);
+  c.st = []; c.real = 0; c.trades = 0; c.openedAt = null;
+}
+function krKaydet(){ isaretle('kriptoCoinler','kriptoIslem','kriptoKapanan'); ciz(); }
+
+const KR_TIP = {buy:'Alış', sell:'Satış', rebuy:'Geri alım'};
+function krTipAd(t, dir){
+  if(t === 'close') return 'Pozisyon kapatma';
+  if(dir === 'S') return ({buy:'Short giriş', sell:'Kapanış', rebuy:'Yeniden short'})[t] || t;
+  return KR_TIP[t] || t;
+}
+function krSure(a, b){
+  if(!a) return '–';
+  const mn = Math.round((b - a)/60000);
+  if(mn < 60) return mn + ' dk';
+  const h = Math.floor(mn/60);
+  if(h < 48) return h + ' sa ' + (mn%60) + ' dk';
+  return Math.floor(h/24) + ' gün ' + (h%24) + ' sa';
+}
+
+/* ---------- canlı fiyat: Binance Futures ---------- */
+let KR_WS = null, KR_SORGU = null, KR_TEKRAR = null;
+let KR_KIRLI = false, KR_SON = 0, KR_DURUM = '', KR_METIN = 'Bağlanıyor…';
+function krSemboller(){ return new Set(krCoinler().map(c => c.fsym).filter(Boolean)); }
+function krDurumYaz(mod, metin){ KR_DURUM = mod; KR_METIN = metin; krCanliCiz(); }
+function krCanliCiz(){
+  const l = $('#krCanli');
+  if(!l) return;
+  l.className = 'krcanli ' + KR_DURUM;
+  const yas = KR_SON ? Math.round((Date.now() - KR_SON)/1000) : null;
+  l.innerHTML = `<i></i>${kacir(KR_METIN)}${yas != null
+    ? ` · son fiyat ${yas < 2 ? 'şimdi' : yas + ' sn önce'}` : ''}`;
+}
+async function krSorgula(){
+  try{
+    const r = await fetch('https://fapi.binance.com/fapi/v1/ticker/price', {cache:'no-store'});
+    const arr = await r.json(), ist = krSemboller();
+    arr.forEach(x => { if(ist.has(x.symbol)) KR_FIYAT[x.symbol] = parseFloat(x.price); });
+    KR_SON = Date.now(); KR_KIRLI = true;
+    return true;
+  }catch(e){ return false; }
+}
+function krSorguBasla(){
+  if(KR_SORGU) return;
+  KR_SORGU = setInterval(async () => {
+    if(aktifSayfa !== 'kripto') return;
+    const ok = await krSorgula();
+    if(!KR_WS || KR_WS.readyState !== 1)
+      krDurumYaz(ok ? 'sorgu' : '', ok ? 'Canlı · yedek bağlantı (3 sn)' : 'Fiyat alınamıyor');
+  }, 3000);
+}
+function krSorguDur(){ clearInterval(KR_SORGU); KR_SORGU = null; }
+function krBaglan(){
+  clearTimeout(KR_TEKRAR);
+  try{ if(KR_WS){ KR_WS.onclose = null; KR_WS.close(); } }catch(e){}
+  try{ KR_WS = new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr'); }
+  catch(e){ KR_WS = null; krSorguBasla(); KR_TEKRAR = setTimeout(krBaglan, 15000); return; }
+  KR_WS.onopen = () => { krDurumYaz('acik','Canlı · Binance Futures'); krSorguDur(); };
+  KR_WS.onmessage = ev => {
+    try{
+      const arr = JSON.parse(ev.data), ist = krSemboller();
+      let d = false;
+      for(const x of arr) if(ist.has(x.s)){ KR_FIYAT[x.s] = parseFloat(x.c); d = true; }
+      if(d){ KR_SON = Date.now(); KR_KIRLI = true; }
+    }catch(e){}
+  };
+  KR_WS.onerror = () => {};
+  KR_WS.onclose = () => {
+    krDurumYaz('sorgu','Bağlantı koptu, yeniden deneniyor…');
+    krSorguBasla(); KR_TEKRAR = setTimeout(krBaglan, 8000);
+  };
+}
+/* Fiyat değiştikçe sayfayı tazeler — yalnızca kripto sayfası açıkken ve
+   form açık değilken, saniyede bir. */
+setInterval(() => {
+  if(aktifSayfa !== 'kripto') return;
+  if(!KR_KIRLI) { krCanliCiz(); return; }
+  if($$('.kapla').length) return;
+  KR_KIRLI = false; ciz();
+}, 1000);
+setInterval(() => {
+  if(KR_WS && KR_WS.readyState === 1 && Date.now() - KR_SON > 30000) krBaglan();
+}, 15000);
+/* Bağlantı ilk kez kripto sayfasına girildiğinde kurulur */
+let KR_BASLADI = false;
+function krBaslat(){
+  if(KR_BASLADI) return;
+  KR_BASLADI = true;
+  krSorgula().then(ok => { if(ok) krDurumYaz('sorgu','Fiyatlar alındı, canlı akışa bağlanılıyor…'); });
+  krBaglan();
+}
+
+/* ---------- görünüm ---------- */
+function gorunumKripto(){
+  krBaslat();
+  const A = krAyar();
+  const coinler = krCoinler();
+  if(!coinler.length) return krBosEkran();
+
+  const hepsi = coinler.map(c => ({c, r: krHesapla(c)}));
+  const sec = Math.min(A.secili, coinler.length - 1);
+
+  let L = 0, Sh = 0, mg = 0, mm = 0, real = 0, up = 0, maxMg = 0;
+  const tetik = [];
+  hepsi.forEach(({c,r}, ci) => {
+    if(c.dir === 'L') L += r.notional; else Sh += r.notional;
+    mg += r.margin; mm += r.mm; real += r.real; up += r.upnl; maxMg += r.maxMargin;
+    r.orders.forEach(o => { if(o.hit) tetik.push({ci, c, r, o}); });
+  });
+  const kapananTop = (D.kriptoKapanan||[]).reduce((a,x) => a + say(x.total), 0);
+  real += kapananTop;
+  const ozkaynak = A.sermaye + real + up;
+  const serbest = ozkaynak - mg;
+  const kullanim = ozkaynak > 0 ? mg/ozkaynak*100 : 0;
+  const marjOran = ozkaynak > 0 ? mm/ozkaynak*100 : 100;
+
+  return `
+  <div class="ust"><h1>Kripto kademe</h1>
+    <span class="krcanli ${KR_DURUM}" id="krCanli"><i></i>${kacir(KR_METIN)}</span>
+    <button class="btn ikincil" data-eylem="krAyarlar">Sermaye ve kaldıraç</button>
+    <button class="btn ikincil" data-eylem="krGeriAl">Geri al</button>
+    <button class="btn" data-eylem="krCoinEkle"><svg><use href="#s-plus"/></svg>Coin ekle</button></div>
+
+  ${tetik.length ? `<div class="krtetik">
+    <div class="bas" style="margin:0 0 8px"><span>Fiyat bu emirlere ulaştı</span>
+      <span class="rozet s">${tetik.length}</span></div>
+    <div class="krtlist">${tetik.slice(0,24).map(h => `
+      <span class="krtitem"><b>${kacir(h.c.sym)}</b> ${kacir(krTipAd(h.o.type, h.c.dir))} · K${h.o.tier+1}
+        · <span class="sayi">${krP(h.o.p, h.r.m)} × ${krQ(h.o.q, h.r.m)}</span>
+        <button class="btn ince" data-eylem="krDoldur" data-ci="${h.ci}" data-tip="${h.o.type}"
+          data-i="${h.o.tier}" data-k="${h.o.k != null ? h.o.k : ''}">Doldu</button></span>`).join('')}</div>
+  </div>` : ''}
+
+  <div class="izgara i4" style="margin-bottom:16px">
+    <div class="kart"><p class="etk">Öz kaynak</p><p class="orta sayi">${krUsd(ozkaynak)}</p>
+      <p class="etk">Sermaye ${krUsd(A.sermaye)} + kâr + açık PnL</p></div>
+    <div class="kart"><p class="etk">Kullanılan margin</p><p class="orta sayi">${krUsd(mg)}</p>
+      <p class="etk">Nominal ${krUsd(L+Sh)} ÷ ${A.kaldirac}x · %${krNf(kullanim,1)}</p></div>
+    <div class="kart"><p class="etk">Serbest margin</p>
+      <p class="orta sayi ${serbest<0?'eks':''}">${krUsd(serbest)}</p>
+      <p class="etk">Alım gücü ${krUsd(Math.max(0,serbest)*A.kaldirac)} nominal</p></div>
+    <div class="kart"><p class="etk">Açık PnL</p>
+      <p class="orta sayi ${krSinif(up)}">${krImza(up)}</p>
+      <p class="etk">Gerçekleşen ${krImza(real)}</p></div>
+  </div>
+
+  <div class="kart" style="margin-bottom:16px">
+    <div class="bas"><span>Ortak margin · ${A.kaldirac}x cross</span>
+      <span class="sayi etk">${krUsd(mg)} / ${krUsd(ozkaynak)} USDT</span></div>
+    ${(() => {
+      const cap = Math.max(ozkaynak, maxMg, mg, 1);
+      return `<div class="krbar"><i style="width:${Math.min(100, mg/cap*100).toFixed(1)}%"></i>
+        <b style="left:calc(${Math.min(100, maxMg/cap*100).toFixed(1)}% - 1px)"></b></div>`;
+    })()}
+    <div class="krlegend">
+      <span>Dolgu: kullanılan margin</span>
+      <span>Çizgi: tüm kademeler dolarsa ${krUsd(maxMg)}</span>
+      <span class="${marjOran>=50?'eks':(marjOran>=25?'uyarit':'')}">Marj oranı %${krNf(marjOran,2)}
+        (bakım ${krUsd(mm)} · %100 = likidasyon)</span>
+      ${maxMg > A.sermaye
+        ? `<span class="uyarit">Tam merdiven sermayeyi ${krUsd(maxMg-A.sermaye)} aşıyor</span>`
+        : `<span>Tam merdivende boşta ${krUsd(A.sermaye-maxMg)}</span>`}
+    </div>
+  </div>
+
+  <div class="kart" style="margin-bottom:16px">
+    <div class="bas"><span>Coinler</span><span class="etk">Satıra tıkla, defteri aşağıda açılır</span></div>
+    <div class="bkaydir"><table style="min-width:1020px">
+      <tr><th>Coin</th><th class="sag">Fiyat</th><th>Kademe</th><th class="sag">Açık adet</th>
+        <th class="sag">Ort. maliyet</th><th class="sag">Nominal</th><th class="sag">Margin</th>
+        <th class="sag">Açık PnL</th><th class="sag">Gerçekleşen</th><th class="sag">Tam merdiven</th></tr>
+      ${hepsi.map(({c,r}, i) => {
+        const m = r.m;
+        const nokta = r.rows.map(x => `<span class="${x.st.b ? (x.sold ? 'yari' : 'dolu') : ''}"></span>`).join('');
+        const sa = r.orders.filter(o => o.type !== 'sell' && !o.hit).sort((a,b)=>Math.abs(a.dist)-Math.abs(b.dist))[0];
+        const ss = r.orders.filter(o => o.type === 'sell' && !o.hit).sort((a,b)=>Math.abs(a.dist)-Math.abs(b.dist))[0];
+        const nh = r.orders.filter(o => o.hit).length;
+        const sonraki = !(c.tiers||[]).length ? 'Kademe girilmedi'
+          : `${sa ? krTipAd(sa.type,c.dir) + ' ' + krP(sa.p,m) + ' (' + krYuzde(sa.dist) + ')' : 'Alışlar tamam'}${
+             ss ? ' · ' + krTipAd('sell',c.dir) + ' ' + krP(ss.p,m) + ' (' + krYuzde(ss.dist) + ')' : ''}`;
+        return `<tr class="krsatir ${i===sec?'secili':''}" data-eylem="krCoinSec" data-i="${i}">
+          <td><b>${kacir(c.sym)}</b>
+            <span class="rozet ${c.dir==='L'?'':'k'}">${c.dir==='L'?'LONG':'SHORT'}</span>
+            ${nh?`<span class="rozet s">${nh} emir</span>`:''}
+            ${r.bad?'<span class="rozet s">ölçek?</span>':''}
+            <br><small class="etk">${kacir(sonraki)}</small></td>
+          <td class="sag sayi">${r.px?krPX(r.px,m):'<span class="etk">–</span>'}</td>
+          <td><span class="krnokta">${nokta}</span></td>
+          <td class="sag sayi">${r.qty?krQ(r.qty,m):'<span class="etk">0</span>'}</td>
+          <td class="sag sayi">${r.qty?krP(r.avg,m):'<span class="etk">–</span>'}</td>
+          <td class="sag sayi">${krUsd(r.notional)}</td>
+          <td class="sag sayi">${krUsd(r.margin)}</td>
+          <td class="sag sayi ${krSinif(r.upnl)}">${r.px&&r.qty?krImza(r.upnl):'<span class="etk">–</span>'}</td>
+          <td class="sag sayi ${krSinif(r.real)}">${krImza(r.real)}</td>
+          <td class="sag sayi etk">${krUsd(r.maxMargin)}</td></tr>`;
+      }).join('')}
+      <tr style="border-top:2px solid var(--cizgi)">
+        <td><b>Toplam</b></td><td></td><td></td><td></td><td></td>
+        <td class="sag sayi"><b>${krUsd(L+Sh)}</b></td>
+        <td class="sag sayi"><b>${krUsd(mg)}</b></td>
+        <td class="sag sayi ${krSinif(up)}"><b>${krImza(up)}</b></td>
+        <td class="sag sayi ${krSinif(real)}"><b>${krImza(real)}</b></td>
+        <td class="sag sayi etk">${krUsd(maxMg)}</td></tr>
+    </table></div>
+  </div>
+
+  ${krDefter(hepsi[sec].c, hepsi[sec].r, sec)}
+  ${krKapananTablo()}
+  ${krIslemTablo()}`;
+}
+
+function krBosEkran(){
+  return `
+  <div class="ust"><h1>Kripto kademe</h1>
+    <button class="btn" data-eylem="krCoinEkle"><svg><use href="#s-plus"/></svg>Coin ekle</button></div>
+  <div class="kart">
+    ${bosKutu('Henüz coin yok. Kademeli alım merdiveni kurmak için önce bir coin ekle.')}
+    <p class="etk" style="margin-top:12px">Her coin için bir merdiven kurarsın: K1 fiyatı, kademe aralığı
+    ve birim adet. Fiyat kademeye indikçe alırsın, her dolan kademenin üstüne otomatik satış emirleri
+    açılır. Satılan parça geri alım emrine döner. Fiyatlar Binance Futures'tan canlı gelir.</p>
+    <div style="margin-top:14px"><button class="btn ikincil" data-eylem="krOrnek">Örnek coinlerle başla</button></div>
+  </div>`;
+}
+
+/* ---------- seçili coinin defteri ---------- */
+function krDefter(c, r, ci){
+  const m = r.m, kisa = c.dir === 'S';
+  const satirlar = r.rows.map((x,i) => {
+    const st = x.st;
+    let satis;
+    if(i === 0) satis = '<span class="etk">Taban pozisyon, satış emri yok</span>';
+    else if(!st.b) satis = `<span class="etk">Alış dolunca ${x.pl.n} satış emri açılır: ${
+      Array.from({length:x.pl.n},(_,k)=>krP(x.pl.sp(k),m)).join(', ')}</span>`;
+    else satis = `<div class="krcipler">${st.ch.map((ch,k) => {
+      const sp = x.pl.sp(k);
+      if(!ch.h) return `<span class="krcip satildi" title="Gerçekleşen ${krP(ch.sp,m)}">${
+        krP(sp,m)} → ${krQ(x.pl.chunk,m)}</span>`;
+      const h = krUlasti({type:'sell', p:sp}, r.px, m.sg);
+      return `<button class="krcip ${h?'ulasti':''}" data-eylem="krDoldur" data-ci="${ci}"
+        data-tip="sell" data-i="${i}" data-k="${k}">${krP(sp,m)} → ${krQ(x.pl.chunk,m)}</button>`;
+    }).join('')}</div>`;
+
+    let alis;
+    if(!st.b){
+      const h = krUlasti({type:'buy', p:x.p}, r.px, m.sg);
+      alis = `<button class="krcip ${h?'ulasti':''}" data-eylem="krDoldur" data-ci="${ci}"
+        data-tip="buy" data-i="${i}">${krP(x.p,m)} × ${krQ(x.q,m)}</button>`;
+    } else if(x.sold){
+      const h = krUlasti({type:'rebuy', p:x.p}, r.px, m.sg);
+      alis = `<button class="krcip geri ${h?'ulasti':''}" data-eylem="krDoldur" data-ci="${ci}"
+        data-tip="rebuy" data-i="${i}" title="${kacir(krTipAd('rebuy',c.dir))}">↺ ${
+        krP(x.p,m)} × ${krQ(x.sold*x.pl.chunk,m)}</button>`;
+    } else alis = `<span class="etk">Doldu @ ${krP(x.avg,m)}</span>`;
+
+    const tr = x.hq && r.px ? m.sg * (r.px - x.avg) * x.hq : 0;
+    return `<tr>
+      <td>${i+1}</td>
+      <td class="sag sayi">${krP(x.p,m)}</td>
+      <td class="sag sayi">${krQ(x.q,m)}</td>
+      <td>${alis}</td>
+      <td class="krsatis">${satis}</td>
+      <td class="sag sayi">${x.hq?krQ(x.hq,m):'<span class="etk">0</span>'}</td>
+      <td class="sag sayi">${x.hq?krP(x.avg,m):'<span class="etk">–</span>'}</td>
+      <td class="sag sayi ${krSinif(tr)}">${x.hq&&r.px?krImza(tr):'<span class="etk">–</span>'}</td></tr>`;
+  }).join('');
+
+  const emirler = r.orders.slice().sort((a,b) => b.p - a.p).map(o => `<tr>
+    <td><span class="rozet ${o.type==='sell'?'k':(o.type==='rebuy'?'s':'n')}">${kacir(krTipAd(o.type,c.dir))}</span></td>
+    <td>K${o.tier+1}</td>
+    <td class="sag sayi">${krP(o.p,m)}</td>
+    <td class="sag sayi">${krQ(o.q,m)}</td>
+    <td class="sag sayi">${krUsd(o.p*o.q)}</td>
+    <td class="sag sayi ${o.hit?'uyarit':'etk'}">${o.hit?'Ulaştı':krYuzde(o.dist)}</td>
+    <td class="sag"><button class="btn ${o.hit?'':'ikincil'} ince" data-eylem="krDoldur" data-ci="${ci}"
+      data-tip="${o.type}" data-i="${o.tier}" data-k="${o.k!=null?o.k:''}">Doldu</button></td></tr>`).join('');
+
+  return `
+  <div class="kart" style="margin-bottom:16px">
+    <div class="bas">
+      <span><b style="font-size:16px">${kacir(c.sym)}</b>
+        <span class="rozet ${c.dir==='L'?'':'k'}">${c.dir==='L'?'LONG':'SHORT'}</span></span>
+      <span class="etk">Aralık ${m.step?krP(m.step,m):'–'} · satış birimi ${m.unit?krQ(m.unit,m):'–'}
+        · ${c.fsym?kacir(c.fsym)+(say(c.pdiv)>1?' ÷ '+c.pdiv:''):'canlı sembol yok'}</span>
+      <button class="btn ikincil ince" data-eylem="krMerdivenKur" data-ci="${ci}">Merdiveni kur</button>
+      <button class="btn ikincil ince" data-eylem="krCoinDuzenle" data-ci="${ci}">Coin ayarı</button>
+      <button class="btn ikincil ince" data-eylem="krElleFiyat" data-ci="${ci}">Elle fiyat</button>
+      <button class="btn ikincil ince" data-eylem="krKapat" data-ci="${ci}"
+        ${r.qty||r.real?'':'disabled'}>Pozisyonu kapat</button>
+    </div>
+    ${r.bad?`<p class="uyari" style="margin-bottom:12px">Canlı fiyat (${krPX(r.px,m)}) kademe
+      fiyatlarıyla aynı ölçekte değil. Binance sembolünü ve fiyat bölenini kontrol et;
+      bu düzelene kadar bu coinde emir uyarısı verilmez.</p>`:''}
+    <div class="izgara i4" style="margin-bottom:14px">
+      <div><p class="etk">Fiyat${r.src?' · '+r.src:''}</p><p class="orta sayi">${r.px?krPX(r.px,m):'–'}</p></div>
+      <div><p class="etk">Açık adet</p><p class="orta sayi">${krQ(r.qty,m)}</p>
+        <p class="etk">ort. ${r.qty?krP(r.avg,m):'–'}</p></div>
+      <div><p class="etk">Nominal / margin</p><p class="orta sayi">${krUsd(r.notional)}</p>
+        <p class="etk">margin ${krUsd(r.margin)}</p></div>
+      <div><p class="etk">Açık PnL</p>
+        <p class="orta sayi ${krSinif(r.upnl)}">${r.px&&r.qty?krImza(r.upnl):'–'}</p>
+        <p class="etk">gerçekleşen ${krImza(r.real)}</p></div>
+    </div>
+    ${(c.tiers||[]).length ? `<div class="bkaydir"><table style="min-width:900px">
+      <tr><th>Kademe</th><th class="sag">Plan fiyat</th><th class="sag">Adet</th>
+        <th>${kisa?'Giriş / yeniden short':'Alış / geri alım'}</th>
+        <th>${kisa?'Kapanış emirleri':'Satış emirleri'}</th>
+        <th class="sag">Açık</th><th class="sag">Gerçek giriş</th><th class="sag">PnL</th></tr>
+      ${satirlar}
+    </table></div>` : bosKutu('Bu coinde kademe yok. “Merdiveni kur” ile oluştur.')}
+    ${r.orders.length ? `<div class="bas" style="margin:16px 0 8px">
+      <span>Borsada açık olması gereken emirler</span><span class="rozet n">${r.orders.length}</span>
+      <span class="etk">fiyata göre sıralı · yüzde, emre kalan mesafe</span></div>
+    <div class="bkaydir"><table style="min-width:760px">
+      <tr><th>Emir</th><th>Kademe</th><th class="sag">Fiyat</th><th class="sag">Adet</th>
+        <th class="sag">Tutar</th><th class="sag">Mesafe</th><th></th></tr>
+      ${emirler}
+    </table></div>`:''}
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ikincil ince" data-eylem="krCoinSifirla" data-ci="${ci}">Dolumları sıfırla</button>
+      <button class="btn ikincil ince tehlike" data-eylem="krCoinSil" data-ci="${ci}">Coini sil</button>
+    </div>
+  </div>`;
+}
+
+/* ---------- kapanan pozisyonlar ---------- */
+function krKapananTablo(){
+  const C = D.kriptoKapanan || [];
+  if(!C.length) return `<div class="kart" style="margin-bottom:16px">
+    <div class="bas"><span>Kapalı pozisyonlar</span></div>
+    ${bosKutu('Henüz kapatılmış pozisyon yok. Bir coini “Pozisyonu kapat” ile kapattığında burada listelenir.')}
+  </div>`;
+  const A = krAyar();
+  const tot = C.reduce((a,x)=>a+say(x.total),0);
+  const cp  = C.reduce((a,x)=>a+say(x.closePnl),0);
+  const gr  = C.reduce((a,x)=>a+say(x.grid),0);
+  const kar = C.filter(x=>say(x.total)>0).length;
+  return `<div class="kart" style="margin-bottom:16px">
+    <div class="bas"><span>Kapalı pozisyonlar</span>
+      <span class="etk">${C.length} pozisyon · ${kar} kâr / ${C.length-kar} zarar</span>
+      <button class="btn ikincil ince" data-eylem="krTumKapat">Tümünü canlı fiyattan kapat</button></div>
+    <div class="izgara i4" style="margin-bottom:14px">
+      <div><p class="etk">Net kâr / zarar</p><p class="orta sayi ${krSinif(tot)}">${krImza(tot)}</p></div>
+      <div><p class="etk">Kapanış PnL</p><p class="orta sayi ${krSinif(cp)}">${krImza(cp)}</p></div>
+      <div><p class="etk">Grid kârı</p><p class="orta sayi ${krSinif(gr)}">${krImza(gr)}</p></div>
+      <div><p class="etk">Kazanma oranı</p><p class="orta sayi">%${krNf(kar/C.length*100,0)}</p></div>
+    </div>
+    <div class="bkaydir"><table style="min-width:980px">
+      <tr><th>Kapanış</th><th>Coin</th><th class="sag">Süre</th><th class="sag">Kademe</th>
+        <th class="sag">Adet</th><th class="sag">Ort. giriş</th><th class="sag">Kapanış</th>
+        <th class="sag">Kapanış PnL</th><th class="sag">Grid kârı</th><th class="sag">Toplam</th>
+        <th class="sag">ROE</th></tr>
+      ${C.map(x => {
+        const m = {dec: say(x.dec), qdec: say(x.qdec)};
+        const d = new Date(x.closed);
+        const ts = d.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit',year:'2-digit'})
+          + ' ' + d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+        const mg = say(x.cost)/A.kaldirac, roe = mg ? say(x.total)/mg*100 : null;
+        return `<tr>
+          <td>${ts}</td>
+          <td><b>${kacir(x.sym)}</b> <span class="rozet ${x.dir==='L'?'':'k'}">${x.dir==='L'?'LONG':'SHORT'}</span></td>
+          <td class="sag">${krSure(x.opened, x.closed)}</td>
+          <td class="sag">${say(x.tiers)}</td>
+          <td class="sag sayi">${say(x.qty)?krQ(x.qty,m):'0'}</td>
+          <td class="sag sayi">${say(x.qty)?krP(x.avg,m):'–'}</td>
+          <td class="sag sayi">${krP(x.close,m)}</td>
+          <td class="sag sayi ${krSinif(x.closePnl)}">${krImza(x.closePnl)}</td>
+          <td class="sag sayi ${krSinif(x.grid)}">${krImza(x.grid)}</td>
+          <td class="sag sayi ${krSinif(x.total)}"><b>${krImza(x.total)}</b></td>
+          <td class="sag sayi ${krSinif(x.total)}">${roe==null?'–':krYuzde(roe)}</td></tr>`;
+      }).join('')}
+    </table></div>
+  </div>`;
+}
+
+/* ---------- işlem günlüğü ---------- */
+function krIslemTablo(){
+  const G = D.kriptoIslem || [];
+  if(!G.length) return `<div class="kart"><div class="bas"><span>İşlem geçmişi</span></div>
+    ${bosKutu('Henüz işlem yok. Bir emri “Doldu” olarak kaydettiğinde burada görünür.')}</div>`;
+  return `<div class="kart">
+    <div class="bas"><span>İşlem geçmişi</span><span class="etk">son ${Math.min(G.length,80)} kayıt</span></div>
+    <div class="bkaydir"><table style="min-width:860px">
+      <tr><th>Zaman</th><th>Coin</th><th>İşlem</th><th class="sag">Kademe</th><th class="sag">Adet</th>
+        <th class="sag">Plan</th><th class="sag">Gerçekleşen</th><th class="sag">Fark</th><th class="sag">Kâr</th></tr>
+      ${G.slice(0,80).map(e => {
+        const c = krCoinler().find(x => x.sym === e.sym);
+        const m = c ? krMeta(c) : {dec:4, qdec:4};
+        const d = new Date(e.t);
+        const ts = d.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'})
+          + ' ' + d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+        const kay = e.kind !== 'close' && say(e.planned)
+          ? (say(e.actual) - say(e.planned))/say(e.planned)*100 : 0;
+        return `<tr>
+          <td>${ts}</td><td><b>${kacir(e.sym)}</b></td>
+          <td><span class="rozet ${e.kind==='sell'?'k':(e.kind==='close'?'s':'n')}">${
+            kacir(krTipAd(e.kind, e.dir))}</span></td>
+          <td class="sag">${e.kind==='close'?'Tümü':'K'+e.tier}</td>
+          <td class="sag sayi">${krQ(e.qty,m)}</td>
+          <td class="sag sayi">${krP(e.planned,m)}</td>
+          <td class="sag sayi">${krP(e.actual,m)}</td>
+          <td class="sag sayi ${Math.abs(kay)>0.0001?'uyarit':'etk'}">${krYuzde(kay)}</td>
+          <td class="sag sayi ${krSinif(e.pnl)}">${e.kind==='sell'||e.kind==='close'?krImza(e.pnl):''}</td>
+        </tr>`;
+      }).join('')}
+    </table></div>
+  </div>`;
+}
+
+/* ---------- kripto eylemleri ---------- */
+function krDoldurFormu(ci, tip, i, k){
+  const c = krCoinler()[ci];
+  if(!c) return;
+  const r = krHesapla(c), m = r.m, x = r.rows[i];
+  if(!x) return bildir('Kademe bulunamadı.');
+  let plan, adet, enGirdi = null, enCok = 0, birim = 0;
+  if(tip === 'buy'){ plan = x.p; adet = x.q; }
+  else if(tip === 'sell'){
+    if(!x.st.ch[k] || !x.st.ch[k].h) return bildir('Bu parça zaten satılmış.');
+    plan = x.pl.sp(k); adet = x.pl.chunk; enGirdi = x.st.ch[k].e;
+  } else {
+    if(!x.sold) return bildir('Bu kademede geri alınacak parça yok.');
+    plan = x.p; enCok = x.sold; birim = x.pl.chunk; adet = enCok * birim;
+  }
+  const alanlar = [];
+  if(tip === 'rebuy' && enCok > 1){
+    alanlar.push({ad:'cnt', etiket:'Kaç parça geri alındı', tip:'secim', on:String(enCok),
+      secenekler: Array.from({length:enCok}, (_,j) => ({v:String(enCok-j),
+        a: krQ((enCok-j)*birim, m) + ' adet (' + (enCok-j) + ' parça)'}))});
+  }
+  alanlar.push({ad:'fiyat', etiket:'Gerçekleşen fiyat', tip:'sayi', on: plan});
+
+  formAc({
+    baslik: `${c.sym} · K${i+1} ${krTipAd(tip, c.dir)}`,
+    alanlar,
+    ekAlt: `<p class="etk" style="margin-top:-4px">
+      Plan fiyat <b>${krP(plan,m)}</b> · adet <b>${krQ(adet,m)}</b>
+      ${enGirdi != null ? ' · giriş <b>'+krP(enGirdi,m)+'</b>' : ''}
+      ${r.px ? ' · şu an <b>'+krPX(r.px,m)+'</b>' : ''}</p>`,
+    dogrula: v => say(v.fiyat) > 0 ? '' : 'Geçerli bir fiyat gir.',
+    kaydet: v => {
+      const f = say(v.fiyat);
+      if(tip === 'buy') krAlisDoldu(c, i, f);
+      else if(tip === 'sell') krSatisDoldu(c, i, k, f);
+      else krGeriAlimDoldu(c, i, Math.max(1, say(v.cnt) || enCok), f);
+      krKaydet();
+      bildir(`${c.sym} ${krTipAd(tip, c.dir).toLocaleLowerCase('tr')} kaydedildi.`);
+    }
+  });
+}
+
+function krKapatFormu(ci){
+  const c = krCoinler()[ci];
+  if(!c) return;
+  const r = krHesapla(c), m = r.m;
+  if(!r.qty && !r.real) return bildir('Bu coinde açık pozisyon yok.');
+  formAc({
+    baslik: `${c.sym} pozisyonunu kapat`,
+    alanlar: [{ad:'fiyat', etiket:'Kapanış fiyatı', tip:'sayi',
+      on: r.px ? krYuvarla(r.px, m.dec+1) : (r.avg ? krYuvarla(r.avg, m.dec) : '')}],
+    ekAlt: `<p class="etk" style="margin-top:-4px">
+      ${c.dir==='L'?'Long':'Short'} · açık <b>${krQ(r.qty,m)}</b> adet
+      ${r.qty?' · ort. giriş <b>'+krP(r.avg,m)+'</b>':''}
+      · grid kârı <b>${krImza(r.real)}</b>.
+      Kapanınca kademeler boşalır, merdiven ayarları kalır.</p>`,
+    dogrula: v => say(v.fiyat) > 0 ? '' : 'Geçerli bir fiyat gir.',
+    kaydet: v => {
+      krPozisyonKapat(c, say(v.fiyat));
+      krKaydet();
+      bildir(`${c.sym} pozisyonu kapatıldı.`);
+    }
+  });
+}
+
+function krCoinFormu(ci){
+  const yeni = ci == null;
+  const c = yeni ? {sym:'', dir:'L', fsym:'', pdiv:1} : krCoinler()[ci];
+  if(!c) return;
+  formAc({
+    baslik: yeni ? 'Yeni coin' : c.sym + ' ayarları',
+    alanlar: [
+      {ad:'sym', etiket:'Kısa ad', tip:'metin', on:c.sym, ipucu:'BTC, ETH, SOL…'},
+      {ad:'dir', etiket:'Yön', tip:'secim', on:c.dir,
+        secenekler:[{v:'L',a:'LONG — fiyat düştükçe al'},{v:'S',a:'SHORT — fiyat yükseldikçe sat'}]},
+      {ad:'fsym', etiket:'Binance Futures sembolü', tip:'metin', on:c.fsym||'', ipucu:'BTCUSDT, 1000PEPEUSDT…'},
+      {ad:'pdiv', etiket:'Fiyat bölen', tip:'sayi', on: say(c.pdiv)||1}
+    ],
+    ekAlt: `<p class="etk" style="margin-top:-4px">Fiyat bölen normalde 1 kalır. Kademe fiyatlarını tek
+      coin fiyatıyla yazıp 1000'li kontratta (1000PEPE, 1000SHIB) işlem yapıyorsan 1000 gir.</p>`,
+    dogrula: v => String(v.sym||'').trim() ? '' : 'Kısa ad boş olamaz.',
+    kaydet: v => {
+      const kayit = {
+        sym: String(v.sym).trim().toUpperCase(),
+        dir: v.dir === 'S' ? 'S' : 'L',
+        fsym: String(v.fsym||'').trim().toUpperCase(),
+        pdiv: Math.max(1, say(v.pdiv) || 1)
+      };
+      if(yeni){
+        krCoinler().push({...kayit, tiers:[], st:[], real:0, trades:0, manual:''});
+        krAyarYaz({secili: krCoinler().length - 1});
+      } else {
+        Object.assign(c, kayit);
+      }
+      isaretle('kriptoCoinler'); ciz();
+      krSorgula();
+    }
+  });
+}
+
+function krMerdivenFormu(ci){
+  const c = krCoinler()[ci];
+  if(!c) return;
+  const r = krHesapla(c), m = r.m;
+  const varMi = (c.tiers||[]).length > 0;
+  formAc({
+    baslik: c.sym + ' merdivenini kur',
+    alanlar: [
+      {ad:'mode', etiket:'Yöntem', tip:'secim', on:'formul',
+        secenekler: varMi
+          ? [{v:'formul',a:'Formülle yeniden kur'},{v:'kaydir',a:'Mevcut merdiveni kaydır'}]
+          : [{v:'formul',a:'Formülle kur'}]},
+      {ad:'start', etiket:'K1 fiyatı', tip:'sayi',
+        on: varMi ? c.tiers[0][0] : (r.px ? krYuvarla(r.px, m.dec) : '')},
+      {ad:'step', etiket:'Kademe aralığı', tip:'sayi', on: m.step || ''},
+      {ad:'unit', etiket:'Birim adet (K1 ve K2)', tip:'sayi', on: m.unit || ''},
+      {ad:'n', etiket:'Kademe sayısı (2–15)', tip:'sayi', on: (c.tiers||[]).length || 7}
+    ],
+    ekAlt: `<p class="etk" style="margin-top:-4px">
+      Fiyat ofseti aralık × (2ⁱ − 1), adet K1 = K2 = birim, sonrasında her kademe ikiye katlanır.
+      ${r.px ? 'Canlı fiyat <b>'+krPX(r.px,m)+'</b>.' : ''}
+      ${c.st && c.st.some(x => x && x.b)
+        ? '<br><b>Dikkat:</b> bu coinde dolu kademeler var, merdiven yeniden kurulunca sıfırlanırlar.' : ''}</p>`,
+    dogrula: v => {
+      const res = krMerdivenDenetle(c, {start:say(v.start), step:say(v.step),
+        unit:say(v.unit), n:Math.round(say(v.n)), mode:v.mode});
+      return typeof res === 'string' ? res : '';
+    },
+    kaydet: v => {
+      const res = krMerdivenDenetle(c, {start:say(v.start), step:say(v.step),
+        unit:say(v.unit), n:Math.round(say(v.n)), mode:v.mode});
+      if(typeof res === 'string') return bildir(res);
+      krYedekle();
+      c.tiers = res; c.st = [];
+      isaretle('kriptoCoinler'); ciz();
+      const mm = krMeta(c);
+      const toplam = res.reduce((a,x) => a + x[0]*x[1], 0);
+      bildir(`${c.sym} merdiveni K1 ${krNf(res[0][0], mm.dec)} ile kuruldu · tam merdiven ${
+        krUsd(toplam)} nominal, ${krUsd(toplam/krAyar().kaldirac)} margin.`);
+    }
+  });
+}
+
+function krElleFiyatFormu(ci){
+  const c = krCoinler()[ci];
+  if(!c) return;
+  const r = krHesapla(c);
+  formAc({
+    baslik: c.sym + ' için elle fiyat',
+    alanlar: [{ad:'manual', etiket:'Fiyat (boş bırak = canlı fiyat)', tip:'sayi', on: c.manual || ''}],
+    ekAlt: `<p class="etk" style="margin-top:-4px">${r.px
+      ? 'Şu anki fiyat <b>' + krPX(r.px, r.m) + '</b> (' + r.src + ').'
+      : 'Bu coin için canlı fiyat gelmiyor.'} Elle fiyat girersen hesaplar o fiyatla yapılır.</p>`,
+    kaydet: v => {
+      c.manual = say(v.manual) > 0 ? say(v.manual) : '';
+      isaretle('kriptoCoinler'); ciz();
+    }
+  });
+}
+
+function krAyarFormu(){
+  const A = krAyar();
+  formAc({
+    baslik: 'Sermaye ve kaldıraç',
+    alanlar: [
+      {ad:'sermaye', etiket:'Sermaye (USDT)', tip:'sayi', on:A.sermaye},
+      {ad:'kaldirac', etiket:'Kaldıraç', tip:'sayi', on:A.kaldirac},
+      {ad:'bakimOran', etiket:'Bakım marjı %', tip:'sayi', on:A.bakimOran}
+    ],
+    ekAlt: `<p class="etk" style="margin-top:-4px">Ortak (cross) margin hesabı. Bakım marjı oranı
+      Binance'te kontrat ve pozisyon büyüklüğüne göre değişir; yaklaşık değeri yeter.</p>`,
+    dogrula: v => say(v.sermaye) > 0 ? (say(v.kaldirac) >= 1 ? '' : 'Kaldıraç en az 1 olmalı.')
+      : 'Sermaye sıfırdan büyük olmalı.',
+    kaydet: v => {
+      krAyarYaz({sermaye: say(v.sermaye), kaldirac: say(v.kaldirac), bakimOran: say(v.bakimOran)});
+      ciz();
+    }
+  });
+}
+
 const GORUNUMLER = {
   ozet: gorunumOzet, islemler: gorunumIslemler, hesaplar: gorunumHesaplar, butce: gorunumButce,
   borclar: gorunumBorclar, kartlar: gorunumKartlar, kisiler: gorunumKisiler,
-  yatirim: gorunumYatirim, emirler: gorunumEmirler, varlik: gorunumVarlik, ayarlar: gorunumAyarlar
+  yatirim: gorunumYatirim, emirler: gorunumEmirler, kripto: gorunumKripto,
+  varlik: gorunumVarlik, ayarlar: gorunumAyarlar
 };
 function ciz(){
   const g = GORUNUMLER[aktifSayfa] || gorunumOzet;
@@ -4291,7 +5177,7 @@ function yonlendir(){
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
   'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
   'yatFiltre','yatSayfa','yatAraTemizle','yatSirala','tradeSirala','emirSirala',
-  'emirAlisSirala','emirSatisSirala','fiyatSina','fiyatIncele','tradeDisaAktar',
+  'emirAlisSirala','emirSatisSirala','krCoinSec','fiyatSina','fiyatIncele','tradeDisaAktar',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
 
@@ -4387,6 +5273,47 @@ document.addEventListener('click', ev => {
     tradeDisaAktar: tradeDisaAktar,
     tradeIceAktar: tradeIceAktar,
     tradeAc: () => tradeFormu((D.trades||[]).find(x => x.id === id)),
+    krCoinSec: () => { krAyarYaz({secili: say(el.dataset.i)}); ciz(); },
+    krDoldur: () => krDoldurFormu(say(el.dataset.ci),
+      el.dataset.tip, say(el.dataset.i), el.dataset.k === '' ? null : say(el.dataset.k)),
+    krKapat: () => krKapatFormu(say(el.dataset.ci)),
+    krCoinEkle: () => krCoinFormu(null),
+    krCoinDuzenle: () => krCoinFormu(say(el.dataset.ci)),
+    krMerdivenKur: () => krMerdivenFormu(say(el.dataset.ci)),
+    krElleFiyat: () => krElleFiyatFormu(say(el.dataset.ci)),
+    krAyarlar: () => krAyarFormu(),
+    krGeriAl: () => krGeriAl(),
+    krCoinSifirla: () => {
+      const c = krCoinler()[say(el.dataset.ci)];
+      if(!c) return;
+      if(!confirm(c.sym + ' dolumları sıfırlansın mı? Kademeler kalır, dolumlar ve gerçekleşen kâr silinir.')) return;
+      krYedekle(); c.st = []; c.real = 0; c.trades = 0; c.openedAt = null;
+      krKaydet(); bildir(c.sym + ' sıfırlandı.');
+    },
+    krCoinSil: () => {
+      const i = say(el.dataset.ci), c = krCoinler()[i];
+      if(!c) return;
+      if(!confirm(c.sym + ' tamamen silinsin mi? Kademeleri ve dolumları gider, kapanmış pozisyonlar kalır.')) return;
+      krYedekle();
+      D.kriptoCoinler = krCoinler().filter((_,j) => j !== i);
+      krAyarYaz({secili: Math.max(0, Math.min(krAyar().secili, D.kriptoCoinler.length - 1))});
+      krKaydet(); bildir(c.sym + ' silindi.');
+    },
+    krTumKapat: () => {
+      const uygun = krCoinler().map(c => ({c, r: krHesapla(c)}))
+        .filter(x => (x.r.qty || x.r.real) && x.r.px && !x.r.bad);
+      if(!uygun.length) return bildir('Canlı fiyatı olan açık pozisyon yok.');
+      if(!confirm(uygun.length + ' pozisyon canlı fiyattan kapatılsın mı?')) return;
+      uygun.forEach(x => krPozisyonKapat(x.c, x.r.px));
+      krKaydet(); bildir(uygun.length + ' pozisyon kapatıldı.');
+    },
+    krOrnek: () => {
+      if(krCoinler().length && !confirm('Örnek coinler eklensin mi?')) return;
+      KR_COIN_ORNEK.forEach(o => krCoinler().push(
+        {...o, tiers: JSON.parse(JSON.stringify(o.tiers)), st:[], real:0, trades:0, manual:''}));
+      isaretle('kriptoCoinler'); ciz(); krSorgula();
+      bildir('Örnek coinler eklendi. “Coin ayarı” ile düzenleyebilirsin.');
+    },
     yatFiltre: () => { yatFiltre = el.dataset.v; ciz(); },
     yatAraTemizle: () => { yatAra = ''; ciz(); },
     yatSirala: () => {
@@ -4498,22 +5425,45 @@ document.addEventListener('click', ev => {
       }
     },
     fiyatEkle: () => {
-      const kod = el.dataset.sembol || '';
-      const mevcut = (D.fiyatlar||[]).find(f => f.sembol === kod);
-      const birim = sembolParaBirimi(kod) === 'USD' ? 'USD karşılığı' : 'TL karşılığı';
+      const kod = String(el.dataset.sembol || '').toUpperCase();
+      const mevcut = (D.fiyatlar||[]).find(f => String(f.sembol||'').toUpperCase() === kod);
+      const pb = sembolParaBirimi(kod);
+      const fonMu = (mevcut && mevcut.tur === 'fon')
+        || (D.trades||[]).some(t => String(t.sembol||'').toUpperCase() === kod && t.tur === 'fon');
+      const ne = mevcut && mevcut.zaman
+        ? 'Son güncelleme ' + new Date(mevcut.zaman).toLocaleString('tr-TR',
+            {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+        : '';
       formAc({
-        baslik: mevcut ? kod + ' fiyatı' : 'Elle fiyat gir',
+        baslik: mevcut ? kod + ' fiyatını düzelt' : 'Elle fiyat gir',
         alanlar:[
           {ad:'sembol', etiket:'Sembol', tip:'metin', on: kod},
-          {ad:'fiyat', etiket: birim, tip:'sayi', on: mevcut ? mevcut.fiyat : ''}],
-        sil: mevcut ? () => { D.fiyatlar = D.fiyatlar.filter(f => f.sembol !== kod); isaretle('fiyatlar'); } : null,
+          {ad:'fiyat', etiket: pb === 'USD' ? 'Birim fiyat (USD)' : 'Birim fiyat (TL)',
+            tip:'sayi', on: mevcut ? mevcut.fiyat : ''},
+          ...(fonMu ? [] : [{ad:'kilit', tip:'onay', on: mevcut ? bool(mevcut.kilit) : false,
+            etiket:'Bu fiyatı kilitle — “Fiyatları güncelle” üzerine yazmasın'}])
+        ],
+        ekAlt: `<p class="etk" style="margin-top:-4px">${fonMu
+          ? 'Fon fiyatları her zaman elle girilir; otomatik güncelleme bu satıra hiç dokunmaz.'
+          : 'Kilitlemezsen bir sonraki “Fiyatları güncelle” bu değeri servisten gelenle değiştirir.'}
+          ${ne ? '<br>' + kacir(ne) : ''}</p>`,
+        sil: mevcut ? () => {
+          D.fiyatlar = D.fiyatlar.filter(f => String(f.sembol||'').toUpperCase() !== kod);
+          isaretle('fiyatlar');
+        } : null,
         kaydet: v => {
           const sembol = String(v.sembol||'').trim().toUpperCase();
           if(!sembol) return;
-          D.fiyatlar = (D.fiyatlar||[]).filter(f => f.sembol !== sembol);
-          D.fiyatlar.push({sembol, tur: mevcut ? mevcut.tur : 'elle', fiyat: say(v.fiyat),
-            guncelleme: ymd(bugun()), zaman: new Date().toISOString(), ad: mevcut ? mevcut.ad : ''});
+          const eski = (D.fiyatlar||[]).find(f => String(f.sembol||'').toUpperCase() === sembol) || {};
+          D.fiyatlar = (D.fiyatlar||[]).filter(f => String(f.sembol||'').toUpperCase() !== sembol);
+          D.fiyatlar.push({sembol,
+            tur: eski.tur || (fonMu ? 'fon' : 'elle'),
+            fiyat: say(v.fiyat),
+            kilit: fonMu ? '' : (bool(v.kilit) ? true : ''),
+            guncelleme: ymd(bugun()), zaman: new Date().toISOString(),
+            ad: eski.ad || ''});
           isaretle('fiyatlar');
+          bildir(sembol + ' fiyatı güncellendi.');
         }
       });
     },
