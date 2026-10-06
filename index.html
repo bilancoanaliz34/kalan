@@ -1089,23 +1089,28 @@ async function fiyatYanit(c){
   return j;
 }
 
-/* Portföyde geçen tüm sembolleri türlerine göre toplar */
+/* Portföyde geçen tüm sembolleri türlerine göre toplar.
+   fon: yalnızca listelemek için toplanır, fiyatı elle girilir. */
 function izlenenSemboller(){
-  const bist = new Set(), fon = new Set(), doviz = new Set(['USD']);
+  const bist = new Set(), fon = new Set(), abd = new Set(), doviz = new Set(['USD']);
   (D.trades||[]).forEach(t => {
     if(!t.sembol) return;
-    (t.tur === 'fon' ? fon : bist).add(String(t.sembol).toUpperCase());
+    const s = String(t.sembol).toUpperCase();
+    if(t.tur === 'fon') fon.add(s);
+    else if(t.tur === 'abd') abd.add(s);
+    else bist.add(s);
   });
   (D.yatirimlar||[]).forEach(y => {
     const s = String(y.sembol||'').toUpperCase();
     if(!s) return;
     if(y.tur === 'bist_hisse') bist.add(s);
     else if(y.tur === 'yatirim_fonu') fon.add(s);
+    else if(y.tur === 'yabanci_hisse') abd.add(s);
     else if(y.tur === 'doviz') doviz.add(s);
   });
   (D.hesaplar||[]).forEach(h => { if(h.paraBirimi && h.paraBirimi !== 'TRY') doviz.add(h.paraBirimi); });
   (D.varliklar||[]).forEach(v => { if(v.paraBirimi && v.paraBirimi !== 'TRY') doviz.add(v.paraBirimi); });
-  return {bist:[...bist], fon:[...fon], doviz:[...doviz]};
+  return {bist:[...bist], abd:[...abd], fon:[...fon], doviz:[...doviz]};
 }
 
 /* Sembolleri küçük gruplara böler: her istek kısa sürer, sonuçlar
@@ -1118,7 +1123,12 @@ function gruplara(dizi, boy){
 
 let FIYAT_SURE = 28000;     // bir grup en çok bu kadar bekler, sonra sıradakine geçilir
 let FIYAT_ESZAMAN = 3;      // aynı anda kaç grup istenir
-let FIYAT_GRUP = {bist:6, doviz:6, fon:3};
+let FIYAT_GRUP = {bist:6, doviz:6, abd:6};   // fon yok: elle girilir
+
+/* Bir istek grubunun hangi türde olduğu */
+function grupTuru(is){
+  return ['bist','abd','doviz','fon'].find(t => is[t] !== undefined) || 'bist';
+}
 
 let fiyatAliniyor = false;
 let fiyatIlerleme = '';
@@ -1177,11 +1187,14 @@ async function fiyatlariTazele({sessiz=false}={}){
   const s = izlenenSemboller();
   const isler = [];
   gruplara(s.bist, FIYAT_GRUP.bist).forEach(g => isler.push({bist:g.join(',')}));
+  gruplara(s.abd, FIYAT_GRUP.abd).forEach(g => isler.push({abd:g.join(',')}));
   gruplara(s.doviz.filter(x => x !== 'TRY'), FIYAT_GRUP.doviz).forEach(g => isler.push({doviz:g.join(',')}));
-  gruplara(s.fon, FIYAT_GRUP.fon).forEach(g => isler.push({fon:g.join(',')}));
+  // Fonlar bilerek yok: fiyatları elle giriliyor.
 
   if(!isler.length){
-    if(!sessiz) bildir('İzlenecek sembol yok. Önce bir işlem ya da pozisyon ekle.');
+    if(!sessiz) bildir(s.fon.length
+      ? 'Otomatik çekilecek sembol yok. Fon fiyatlarını “Fon fiyatları” ile elle girebilirsin.'
+      : 'İzlenecek sembol yok. Önce bir işlem ya da pozisyon ekle.');
     return;
   }
 
@@ -1234,9 +1247,9 @@ async function fiyatlariTazele({sessiz=false}={}){
     if(kalan.length && !fiyatIptal){
       const tekrar = [];
       kalan.forEach(is => {
-        const tp = is.bist !== undefined ? 'bist' : (is.doviz !== undefined ? 'doviz' : 'fon');
+        const tp = grupTuru(is);
         const semboller = is.__eksik || String(is[tp] || '').split(',').filter(Boolean);
-        gruplara(semboller, tp === 'fon' ? 2 : 3).forEach(g => {
+        gruplara(semboller, 3).forEach(g => {
           if(g.length) tekrar.push({[tp]: g.join(',')});
         });
       });
@@ -1244,13 +1257,13 @@ async function fiyatlariTazele({sessiz=false}={}){
         etiket = 'Tekrar';
         const son = await turuYurut(tekrar);
         son.forEach(is => {
-          const t = is.bist !== undefined ? 'bist' : (is.doviz !== undefined ? 'doviz' : 'fon');
+          const t = grupTuru(is);
           (is.__eksik || String(is[t] || '').split(',')).forEach(x => x && eksik.push(x));
         });
       }
     } else {
       kalan.forEach(is => {
-        const t = is.bist !== undefined ? 'bist' : (is.doviz !== undefined ? 'doviz' : 'fon');
+        const t = grupTuru(is);
         (is.__eksik || String(is[t] || '').split(',')).forEach(x => x && eksik.push(x));
       });
     }
@@ -1627,11 +1640,25 @@ function yaklasanOdemeler(gun=30){
 
 const TRADE_YON = {alis:'Alış', satis:'Satış', temettu:'Temettü',
   bedelsiz:'Bedelsiz', bolunme:'Bölünme'};
+const TRADE_TUR = {hisse:'Hisse', fon:'Fon', abd:'ABD'};
 
 function tradeKur(t){
   const k = say(t.usdKuru);
   return k > 0 ? k : (kur('USD') || 1);
 }
+
+/* ABD hisse ve ETF işlemleri dolar cinsinden girilir */
+function usdTrade(t){ return (t && t.tur) === 'abd'; }
+
+/* Bir sembolün hangi para biriminde işlem gördüğü — son kayda bakar */
+function sembolParaBirimi(sembol){
+  const t = (D.trades||[]).find(x =>
+    String(x.sembol||'').toUpperCase() === String(sembol||'').toUpperCase());
+  return usdTrade(t) ? 'USD' : 'TRY';
+}
+
+/* Fiyatları elle girilen türler — otomatik servise sorulmaz */
+function elleFiyatMi(tur){ return tur === 'fon'; }
 
 /* Bir sembolün tüm hareketlerini sırayla işler */
 /* Aynı gün içindeki işlemlerin işlenme sırası. Gün içinde alıp satmak sık
@@ -1652,6 +1679,7 @@ function pozisyonHesapla(sembol){
 
   let adet = 0, maliyet = 0, maliyetUsd = 0;
   let realizeTl = 0, realizeUsd = 0, temettuTl = 0, temettuUsd = 0;
+  let komisyonTl = 0, komisyonUsd = 0;
   let ad = '', tur = 'hisse';
   let fazlaSatis = 0;                      // elde olandan fazla satılan adet
   const kapanan = [];
@@ -1661,11 +1689,19 @@ function pozisyonHesapla(sembol){
     if(t.ad) ad = t.ad;
     if(t.tur) tur = t.tur;
     const a = say(t.adet), f = say(t.fiyat);
+    // ABD hisse ve ETF'lerinde fiyat da komisyon da dolar cinsinden girilir;
+    // TL karşılığı işlem günündeki kurla bulunur. Diğerlerinde tersi geçerli.
+    const usdIslem = usdTrade(t);
+    const tl  = (x) => usdIslem ? x * k : x;          // kendi birimi → TL
+    const usd = (x) => usdIslem ? x : x / k;          // kendi birimi → USD
+    const kom = say(t.komisyon);
 
     if(t.yon === 'alis'){
       adet += a;
-      maliyet += a * f;
-      maliyetUsd += (a * f) / k;
+      // komisyon maliyete eklenir: ortalama maliyeti yükseltir
+      maliyet    += tl(a * f + kom);
+      maliyetUsd += usd(a * f + kom);
+      komisyonTl += tl(kom); komisyonUsd += usd(kom);
     }
     else if(t.yon === 'satis'){
       if(a > adet + 0.0000001) fazlaSatis += a - Math.max(adet, 0);
@@ -1673,30 +1709,35 @@ function pozisyonHesapla(sembol){
       const sat = Math.min(a, adet);
       const birim = maliyet / adet;
       const birimUsd = maliyetUsd / adet;
-      const kzTl = sat * f - sat * birim;
-      const kzUsd = (sat * f) / k - sat * birimUsd;
+      // komisyon hasılattan düşülür: gerçekleşen kârı azaltır
+      const hasilat = sat * f - kom;
+      const kzTl  = tl(hasilat)  - sat * birim;
+      const kzUsd = usd(hasilat) - sat * birimUsd;
       realizeTl += kzTl; realizeUsd += kzUsd;
+      komisyonTl += tl(kom); komisyonUsd += usd(kom);
       kapanan.push({tarih:t.tarih, sembol, ad, tur, adet:sat, fiyat:f,
-        maliyet:birim, kzTl, kzUsd, kur:k,
-        oran: birim > 0 ? (f / birim - 1) : 0,
-        oranUsd: birimUsd > 0 ? ((f / k) / birimUsd - 1) : 0, id:t.id});
+        maliyet: usdIslem ? birimUsd : birim, kzTl, kzUsd, kur:k, komisyon:kom,
+        paraBirimi: usdIslem ? 'USD' : 'TRY',
+        oran: (usdIslem ? birimUsd : birim) > 0 ? (f / (usdIslem ? birimUsd : birim) - 1) : 0,
+        oranUsd: birimUsd > 0 ? (usd(f) / birimUsd - 1) : 0, id:t.id});
       adet -= sat;
       maliyet -= sat * birim;
       maliyetUsd -= sat * birimUsd;
       if(adet < 0.0000001){ adet = 0; maliyet = 0; maliyetUsd = 0; }
     }
     else if(t.yon === 'temettu'){
-      const net = say(t.fiyat);           // doğrudan net tutar
-      temettuTl += net;
-      temettuUsd += net / k;
+      const net = say(t.fiyat) - kom;     // net tutar, varsa komisyon düşülmüş
+      temettuTl += tl(net);
+      temettuUsd += usd(net);
+      komisyonTl += tl(kom); komisyonUsd += usd(kom);
       if(adet > 0.0000001){
         // temettü maliyeti düşürür, böylece hisse kârına yansır
-        maliyet -= net;
-        maliyetUsd -= net / k;
+        maliyet -= tl(net);
+        maliyetUsd -= usd(net);
       } else {
         // pozisyon kapalıyken gelen temettü doğrudan gerçekleşen kâra yazılır
-        realizeTl += net;
-        realizeUsd += net / k;
+        realizeTl += tl(net);
+        realizeUsd += usd(net);
       }
     }
     else if(t.yon === 'bedelsiz'){
@@ -1708,22 +1749,28 @@ function pozisyonHesapla(sembol){
     }
   });
 
-  const fiyat = fiyatBul(sembol);
-  const deger = adet * fiyat;
+  const usdPoz = tur === 'abd';
   const usdKuru = kur('USD') || 1;
+  const fiyat = fiyatBul(sembol);            // ABD'de dolar, diğerlerinde TL
+  const fiyatTl = usdPoz ? fiyat * usdKuru : fiyat;
+  const deger = adet * fiyatTl;
+  const degerUsd = usdPoz ? adet * fiyat : deger / usdKuru;
   return {
     sembol: String(sembol).toUpperCase(), ad, tur,
-    adet, maliyet, maliyetUsd,
+    paraBirimi: usdPoz ? 'USD' : 'TRY',      // fiyatın ve birim maliyetin birimi
+    adet, maliyet, maliyetUsd, komisyonTl, komisyonUsd,
     birim: adet > 0 ? maliyet / adet : 0,
     birimUsd: adet > 0 ? maliyetUsd / adet : 0,
-    fiyat, deger, degerUsd: deger / usdKuru,
+    // birimKendi / fiyat: pozisyonun kendi para biriminde
+    birimKendi: adet > 0 ? (usdPoz ? maliyetUsd / adet : maliyet / adet) : 0,
+    fiyat, fiyatTl, deger, degerUsd,
     acikKzTl: deger - maliyet,
-    acikKzUsd: deger / usdKuru - maliyetUsd,
+    acikKzUsd: degerUsd - maliyetUsd,
     acikOran: maliyet > 0 ? (deger / maliyet - 1) : 0,
-    acikOranUsd: maliyetUsd > 0 ? ((deger / usdKuru) / maliyetUsd - 1) : 0,
+    acikOranUsd: maliyetUsd > 0 ? (degerUsd / maliyetUsd - 1) : 0,
     realizeTl, realizeUsd, temettuTl, temettuUsd,
     toplamKzTl: (deger - maliyet) + realizeTl,
-    toplamKzUsd: (deger / usdKuru - maliyetUsd) + realizeUsd,
+    toplamKzUsd: (degerUsd - maliyetUsd) + realizeUsd,
     kapanan, hareketSayisi: hareketler.length,
     fazlaSatis,                            // 0'dan büyükse kayıt eksik demektir
     fiyatVar: fiyat > 0
@@ -1754,7 +1801,8 @@ function portfoyOzet(filtre){
     temettuUsd: hepsi.reduce((a,p) => a + p.temettuUsd, 0),
     usdKuru
   };
-  t.degerUsd = t.deger / usdKuru;
+  // ABD pozisyonlarında dolar değeri birebir, TL'de kurla çevrilmiş olarak gelir
+  t.degerUsd = fiyatli.reduce((a,p) => a + say(p.degerUsd), 0);
   t.acikKzTl = t.deger - t.maliyet;
   t.acikKzUsd = t.degerUsd - t.maliyetUsd;
   t.acikOran = t.maliyet > 0 ? (t.deger / t.maliyet - 1) : 0;
@@ -1809,9 +1857,13 @@ function emirDurumu(sembol){
   const p = pozisyonHesapla(sembol);
   const k = sembolKurali(sembol);
   const son = sonIslemFiyati(sembol);
-  const guncel = p.fiyat;
+  const guncel = p.fiyat;                 // ABD'de dolar, diğerlerinde TL
+  // Kurallardaki tutarlar TL yazılır; ABD sembolünde dolara çevrilir
+  const usdKuru = kur('USD') || 1;
+  const cevir = (tl) => p.paraBirimi === 'USD' ? say(tl) / usdKuru : say(tl);
   const d = {
     sembol: p.sembol, ad: p.ad, tur: p.tur, kural: k,
+    paraBirimi: p.paraBirimi,
     adet: p.adet, guncel, referans: son ? son.fiyat : 0,
     referansTarih: son ? son.tarih : '', referansYon: son ? son.yon : '',
     hazir: !!(son && guncel > 0)
@@ -1826,7 +1878,7 @@ function emirDurumu(sembol){
     d.alisEsik = say(k.alisDusus);
     d.alisHedef = d.referans * (1 - d.alisEsik);
     d.alisTetik = guncel <= d.alisHedef + 0.0000001;
-    d.alisAdet = Math.ceil(say(k.alisTutar) / guncel);
+    d.alisAdet = Math.ceil(cevir(k.alisTutar) / guncel);
     d.alisTutar = d.alisAdet * guncel;
     d.alisUzaklik = guncel > 0 ? d.alisHedef / guncel - 1 : 0;  // hedefe kalan oran
     // Eşiğe doğru yol alınan kısım: 0 = hiç düşmemiş, 1 = eşiğe ulaşmış
@@ -1838,7 +1890,7 @@ function emirDurumu(sembol){
     d.satisEsik = say(k.satisArtis);
     d.satisHedef = d.referans * (1 + d.satisEsik);
     d.satisTetikFiyat = guncel >= d.satisHedef - 0.0000001;
-    d.satisAdetHam = Math.ceil(say(k.satisTutar) / guncel);
+    d.satisAdetHam = Math.ceil(cevir(k.satisTutar) / guncel);
     d.satisAdet = Math.min(d.satisAdetHam, Math.floor(p.adet));
     d.satisKisitli = d.satisAdet < d.satisAdetHam;
     d.satisTutarTl = d.satisAdet * guncel;
@@ -1883,7 +1935,8 @@ function netVarlik(){
   tumPozisyonlar().forEach(p => {
     if(p.adet <= 0.0000001 || p.deger <= 0) return;
     varlik += p.deger;
-    kalem.push({grup: p.tur === 'fon' ? 'Fon' : 'Hisse', ad:p.sembol, tutar:p.deger});
+    kalem.push({grup: TRADE_TUR[p.tur] === 'ABD' ? 'ABD hisse' : (p.tur === 'fon' ? 'Fon' : 'Hisse'),
+      ad:p.sembol, tutar:p.deger});
   });
   (D.varliklar||[]).forEach(v => {
     if(v.netVarligaDahil === false) return;
@@ -2551,6 +2604,7 @@ function gorunumKisiler(){
 
 function gorunumYatirim(){
   const t = portfoyOzet(['hepsi','diger'].includes(yatFiltre) ? null : yatFiltre);
+  const fonVar = (D.trades||[]).some(x => x.tur === 'fon');
   const fiyatZaman = (D.fiyatlar||[]).reduce((a,f) => f.zaman && f.zaman > a ? f.zaman : a, '');
   const usdKuru = t.usdKuru;
 
@@ -2563,6 +2617,7 @@ function gorunumYatirim(){
   return `
   <div class="ust"><h1>Yatırımlar</h1>
     <button class="btn ikincil" data-eylem="fiyatYenile"><svg><use href="#s-sync"/></svg>Fiyatları güncelle</button>
+    ${fonVar ? `<button class="btn ikincil" data-eylem="fonFiyatlari">Fon fiyatları</button>` : ''}
     <button class="btn ikincil" data-eylem="tradeDisaAktar">Excel'e aktar</button>
     <button class="btn ikincil" data-eylem="tradeIceAktar">Excel'den yükle</button>
     <button class="btn ikincil" data-eylem="tradeEkle" data-yon="temettu">Temettü</button>
@@ -2593,7 +2648,7 @@ function gorunumYatirim(){
   </div>` : ''}
 
   <div class="sek2">
-    ${[['hepsi','Tümü'],['hisse','Hisseler'],['fon','Fonlar'],['diger','Döviz ve altın']].map(([v,a]) =>
+    ${[['hepsi','Tümü'],['hisse','Hisseler'],['abd','ABD'],['fon','Fonlar'],['diger','Döviz ve altın']].map(([v,a]) =>
       `<button data-eylem="yatFiltre" data-v="${v}" class="${yatFiltre===v?'on':''}">${a}</button>`).join('')}
     <span style="width:14px"></span>
     ${[['pozisyon','Pozisyonlar'],['islem','İşlem geçmişi'],['kapanan','Kapanan işlemler']].map(([v,a]) =>
@@ -2709,17 +2764,21 @@ function pozisyonTablosu(t){
       ${siraBaslik(yatSira,'K/Z (TL)','acikKzTl',1)}${siraBaslik(yatSira,'K/Z (USD)','acikKzUsd',1)}<th></th></tr>
     ${sirala(acik, yatSira.alan, yatSira.yon).map(p => `<tr${p.fiyat>0?'':' style="opacity:.6"'}>
       <td><b>${kacir(p.sembol)}</b>
-        <span class="rozet n" style="margin-left:6px">${p.tur==='fon'?'Fon':'Hisse'}</span>
+        <span class="rozet ${p.tur==='abd'?'':'n'}" style="margin-left:6px">${TRADE_TUR[p.tur]||'Hisse'}</span>
         ${p.fazlaSatis > 0 ? `<span class="rozet s" style="margin-left:4px"
           title="Satışlar elde olandan ${say(p.fazlaSatis).toLocaleString('tr-TR',{maximumFractionDigits:4})} adet fazla. Eksik bir alış kaydı olabilir.">kayıt eksik</span>` : ''}
         ${p.ad?`<br><small class="etk">${kacir(p.ad)}</small>`:''}</td>
       <td class="sag sayi">${say(p.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</td>
-      <td class="sag sayi">${para(p.birim,'TRY',p.tur==='fon'?4:2)}
-        <div class="etk" style="font-size:11.5px">${para(p.birimUsd,'USD',p.tur==='fon'?4:2)}</div></td>
+      <td class="sag sayi">${p.paraBirimi==='USD'
+        ? para(p.birimUsd,'USD',2) + `<div class="etk" style="font-size:11.5px">${para(p.birim,'TRY',2)}</div>`
+        : para(p.birim,'TRY',p.tur==='fon'?4:2) + `<div class="etk" style="font-size:11.5px">${para(p.birimUsd,'USD',p.tur==='fon'?4:2)}</div>`}</td>
       <td class="sag sayi ${p.temettuTl>0?'art':'etk'}">${p.temettuTl>0
         ? para(p.temettuTl) + `<div class="etk" style="font-size:11.5px">${para(p.temettuUsd,'USD')}</div>` : '—'}</td>
-      <td class="sag sayi">${p.fiyat>0 ? para(p.fiyat,'TRY',p.tur==='fon'?4:2)
-        : '<span class="rozet s">fiyat yok</span>'}</td>
+      <td class="sag sayi">${p.fiyat>0
+        ? para(p.fiyat, p.paraBirimi, p.tur==='fon'?4:2) + (p.paraBirimi==='USD'
+            ? `<div class="etk" style="font-size:11.5px">${para(p.fiyatTl,'TRY',2)}</div>` : '')
+        : `<button class="btn ikincil ince" data-eylem="fiyatEkle" data-sembol="${kacir(p.sembol)}"
+            title="Fiyatı elle gir">fiyat gir</button>`}</td>
       <td class="sag sayi">${p.fiyat>0 ? para(p.deger) +
         `<div class="etk" style="font-size:11.5px">${para(p.degerUsd,'USD')}</div>` : '<span class="etk">—</span>'}</td>
       <td class="sag sayi ${p.fiyat>0 ? (p.acikKzTl<0?'eks':'art') : 'etk'}">${p.fiyat>0
@@ -2775,19 +2834,27 @@ function tradeGecmisi(){
       ${siraBaslik(tradeSira,'Kur','usdKuru',1)}<th></th></tr>
     ${liste.map(x => {
       const a = say(x.adet), f = say(x.fiyat), k = tradeKur(x);
-      const tutar = x.yon === 'temettu' ? f : a * f;
+      const usdI = usdTrade(x), pb = usdI ? 'USD' : 'TRY';
+      const kom = say(x.komisyon);
+      const brut = x.yon === 'temettu' ? f : a * f;
+      // komisyon alışta eklenir, satış ve temettüde düşülür
+      const tutar = x.yon === 'alis' ? brut + kom : brut - kom;
+      const tutarTl = usdI ? tutar * k : tutar;
+      const tutarUsd = usdI ? tutar : tutar / k;
       const ozel = x.yon === 'bedelsiz' || x.yon === 'bolunme';
       return `<tr data-eylem="tradeAc" data-id="${x.id}" style="cursor:pointer">
         <td>${trTarih(x.tarih)}</td>
-        <td><b>${kacir(x.sembol)}</b></td>
+        <td><b>${kacir(x.sembol)}</b>${usdI?'<br><small class="etk">ABD</small>':''}</td>
         <td><span class="rozet ${x.yon==='satis'?'k':(x.yon==='alis'?'':'n')}">${TRADE_YON[x.yon]||x.yon}</span>
           ${x.not?`<br><small class="etk">${kacir(x.not)}</small>`:''}</td>
         <td class="sag sayi">${ozel ? '<span class="etk">oran ' + say(x.oran).toLocaleString('tr-TR') + '</span>'
           : (a ? a.toLocaleString('tr-TR',{maximumFractionDigits:4}) : '')}</td>
-        <td class="sag sayi">${ozel ? '' : (x.yon==='temettu' ? '' : para(f,'TRY',x.tur==='fon'?4:2))}</td>
+        <td class="sag sayi">${ozel ? '' : (x.yon==='temettu' ? '' : para(f,pb,x.tur==='fon'?4:2))}
+          ${kom>0?`<div class="etk" style="font-size:11.5px">kom. ${para(kom,pb,2)}</div>`:''}</td>
         <td class="sag sayi ${x.yon==='satis'||x.yon==='temettu'?'art':''}">${ozel ? '' :
-          (x.yon==='alis'?'−':'+') + para(tutar)}
-          ${ozel ? '' : `<div class="etk" style="font-size:11.5px">${para(tutar/k,'USD')}</div>`}</td>
+          (x.yon==='alis'?'−':'+') + para(usdI ? tutarUsd : tutarTl, pb)}
+          ${ozel ? '' : `<div class="etk" style="font-size:11.5px">${
+            para(usdI ? tutarTl : tutarUsd, usdI ? 'TRY' : 'USD')}</div>`}</td>
         <td class="sag sayi etk">${k>1?para(k,'TRY',2):''}</td>
         <td class="sag"><span class="etk">düzenle ›</span></td>
       </tr>`;
@@ -2821,10 +2888,12 @@ function kapananTablosu(t){
           <th class="sag">K/Z (TL)</th><th class="sag">K/Z (USD)</th></tr>
         ${satirlar.map(k => `<tr>
           <td>${trTarih(k.tarih)}</td>
-          <td><b>${kacir(k.sembol)}</b></td>
+          <td><b>${kacir(k.sembol)}</b>${k.paraBirimi==='USD'?'<br><small class="etk">ABD</small>':''}</td>
           <td class="sag sayi">${say(k.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</td>
-          <td class="sag sayi">${para(k.maliyet,'TRY',k.tur==='fon'?4:2)}</td>
-          <td class="sag sayi">${para(k.fiyat,'TRY',k.tur==='fon'?4:2)}</td>
+          <td class="sag sayi">${para(k.maliyet, k.paraBirimi||'TRY', k.tur==='fon'?4:2)}</td>
+          <td class="sag sayi">${para(k.fiyat, k.paraBirimi||'TRY', k.tur==='fon'?4:2)}
+            ${say(k.komisyon)>0?`<div class="etk" style="font-size:11.5px">kom. ${
+              para(k.komisyon, k.paraBirimi||'TRY', 2)}</div>`:''}</td>
           <td class="sag sayi ${k.kzTl<0?'eks':'art'}">${k.kzTl>0?'+':''}${para(k.kzTl)}
             <div style="font-size:11.5px;font-weight:500">${yuzde(k.oran)}</div></td>
           <td class="sag sayi ${k.kzUsd<0?'eks':'art'}">${k.kzUsd>0?'+':''}${para(k.kzUsd,'USD')}
@@ -2852,6 +2921,7 @@ function gorunumEmirler(){
     const adet  = alisMi ? d.alisAdet : d.satisAdet;
     const tutar = alisMi ? d.alisTutar : d.satisTutarTl;
     const bas   = d.tur === 'fon' ? 4 : 2;
+    const pb    = d.paraBirimi || 'TRY';
     const kalan = Math.max(0, esik - git);
     return `<div class="emirk ${yon}${tetik ? ' tetik' : ''}">
       <div class="emirb">
@@ -2862,13 +2932,13 @@ function gorunumEmirler(){
       </div>
       <div class="emircubuk" title="Eşiğin %${(oran*100).toFixed(0)}'i kat edildi"><i style="width:${(oran*100).toFixed(1)}%"></i></div>
       <div class="emirsat">
-        <span>Son işlem <b>${para(d.referans,'TRY',bas)}</b></span>
-        <span>Güncel <b>${para(d.guncel,'TRY',bas)}</b></span>
-        <span>Hedef <b>${para(hedef,'TRY',bas)}</b></span>
+        <span>Son işlem <b>${para(d.referans,pb,bas)}</b></span>
+        <span>Güncel <b>${para(d.guncel,pb,bas)}</b></span>
+        <span>Hedef <b>${para(hedef,pb,bas)}</b></span>
       </div>
       <div class="emirsin${tetik ? '' : ' bekleyen'}">
         <span><b>${say(adet).toLocaleString('tr-TR')} adet</b> ${alisMi ? 'al' : 'sat'}
-          · ${para(tutar)}${tetik ? '' : ' <span class="etk">(bugünkü fiyatla)</span>'}</span>
+          · ${para(tutar,pb)}${tetik ? '' : ' <span class="etk">(bugünkü fiyatla)</span>'}</span>
         <span class="etk">${alisMi
           ? (d.adet > 0 ? 'elinde ' + say(d.adet).toLocaleString('tr-TR',{maximumFractionDigits:4}) + ' adet' : 'pozisyon yok')
           : 'elinde ' + say(d.adet).toLocaleString('tr-TR',{maximumFractionDigits:4}) + ' adet'
@@ -2956,26 +3026,26 @@ function gorunumEmirler(){
         <td><b>${kacir(d.sembol)}</b>
           ${d.adet>0?`<br><small class="etk">${say(d.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})} adet</small>`
             :'<br><small class="etk">pozisyon kapalı</small>'}</td>
-        <td class="sag sayi">${d.referans?para(d.referans,'TRY',d.tur==='fon'?4:2):'<span class="etk">—</span>'}
+        <td class="sag sayi">${d.referans?para(d.referans,d.paraBirimi||'TRY',d.tur==='fon'?4:2):'<span class="etk">—</span>'}
           ${d.referansTarih?`<div class="etk" style="font-size:11.5px">${trTarih(d.referansTarih)}</div>`:''}</td>
-        <td class="sag sayi">${d.guncel>0?para(d.guncel,'TRY',d.tur==='fon'?4:2)
+        <td class="sag sayi">${d.guncel>0?para(d.guncel,d.paraBirimi||'TRY',d.tur==='fon'?4:2)
           :'<span class="rozet s">fiyat yok</span>'}</td>
         <td class="sag sayi ${d.hazir?(d.degisim<0?'eks':'art'):''}">${d.hazir
           ?(d.degisim>0?'+':'')+yzd(d.degisim):'—'}</td>
-        <td class="sag sayi">${d.alisHedef?`${para(d.alisHedef,'TRY',d.tur==='fon'?4:2)}
+        <td class="sag sayi">${d.alisHedef?`${para(d.alisHedef,d.paraBirimi||'TRY',d.tur==='fon'?4:2)}
           <div class="${d.alisTetik?'art':'etk'}" style="font-size:11.5px;font-weight:500">${
             d.alisTetik?'tetiklendi':'%'+Math.abs(say(d.alisUzaklik)*100).toFixed(1).replace('.',',')+' kaldı'}</div>`
           :'<span class="etk">—</span>'}</td>
         <td class="sag sayi">${d.alisAdet?`${say(d.alisAdet).toLocaleString('tr-TR')}
-          <div class="etk" style="font-size:11.5px">${para(d.alisTutar)}</div>`
+          <div class="etk" style="font-size:11.5px">${para(d.alisTutar,d.paraBirimi||'TRY')}</div>`
           :'<span class="etk">—</span>'}</td>
-        <td class="sag sayi">${d.satisHedef?`${para(d.satisHedef,'TRY',d.tur==='fon'?4:2)}
+        <td class="sag sayi">${d.satisHedef?`${para(d.satisHedef,d.paraBirimi||'TRY',d.tur==='fon'?4:2)}
           <div class="${d.satisTetik?'art':'etk'}" style="font-size:11.5px;font-weight:500">${
             d.satisTetikFiyat?(d.satisAdet>0?'tetiklendi':'pozisyon yok')
             :'%'+Math.abs(say(d.satisUzaklik)*100).toFixed(1).replace('.',',')+' kaldı'}</div>`
           :'<span class="etk">—</span>'}</td>
         <td class="sag sayi">${d.satisAdet>0?`${say(d.satisAdet).toLocaleString('tr-TR')}
-          <div class="etk" style="font-size:11.5px">${para(d.satisTutarTl)}${
+          <div class="etk" style="font-size:11.5px">${para(d.satisTutarTl,d.paraBirimi||'TRY')}${
             d.satisKisitli?' · tamamı':''}</div>`
           :'<span class="etk">—</span>'}</td>
         <td>${d.kural.ozel?'<span class="rozet">kendi kuralı</span>':'<span class="etk">genel</span>'}</td>
@@ -3603,8 +3673,9 @@ function butceMetindenAktar(metin){
    İŞLEM GEÇMİŞİ — Excel'e aktarma ve geri yükleme
    =================================================================== */
 
-const TRADE_KOLON = ['Tarih','Sembol','Ad','Tür','İşlem','Adet','Fiyat','Tutar','Oran','USD kuru','Not'];
-const TUR_AD = {hisse:'Hisse', fon:'Fon'};
+const TRADE_KOLON = ['Tarih','Sembol','Ad','Tür','İşlem','Adet','Fiyat','Tutar',
+  'Komisyon','Oran','USD kuru','Not'];
+const TUR_AD = {hisse:'Hisse', fon:'Fon', abd:'ABD'};
 const YON_AD = {alis:'Alış', satis:'Satış', temettu:'Temettü', bedelsiz:'Bedelsiz', bolunme:'Bölünme'};
 
 function tradeDisaAktar(){
@@ -3616,11 +3687,12 @@ function tradeDisaAktar(){
     t.yon === 'temettu' ? '' : csvSayi(t.adet),
     t.yon === 'temettu' ? '' : csvSayi(t.fiyat),
     t.yon === 'temettu' ? csvSayi(t.fiyat) : (say(t.adet) && say(t.fiyat) ? csvSayi(say(t.adet)*say(t.fiyat)) : ''),
-    csvSayi(t.oran), csvSayi(t.usdKuru), t.not || ''
+    csvSayi(t.komisyon), csvSayi(t.oran), csvSayi(t.usdKuru), t.not || ''
   ]);
   if(!satirlar.length) satirlar.push(
-    [trTarih(ymd(bugun())),'THYAO','Örnek alış — silebilirsin','Hisse','Alış','100','250','25000','','35',''],
-    [trTarih(ymd(bugun())),'THYAO','Örnek temettü — silebilirsin','Hisse','Temettü','','','1500','','35','']);
+    [trTarih(ymd(bugun())),'THYAO','Örnek alış — silebilirsin','Hisse','Alış','100','250','25000','','','35',''],
+    [trTarih(ymd(bugun())),'THYAO','Örnek temettü — silebilirsin','Hisse','Temettü','','','1500','','','35',''],
+    [trTarih(ymd(bugun())),'VOO','Örnek ABD alışı — fiyat ve komisyon USD','ABD','Alış','3','545,20','1635,60','1,5','','41,20','']);
   const metin = '﻿' + [TRADE_KOLON].concat(satirlar)
     .map(r => r.map(csvHucre).join(';')).join('\r\n');
   const b = new Blob([metin], {type:'text/csv;charset=utf-8'});
@@ -3680,6 +3752,7 @@ function tradeMetindenAktar(metin){
     fiyat:  bul('Fiyat','Birim fiyat','Tutar'),
     tutar:  bul('Tutar','Net tutar','Net'),
     stopaj: bul('Stopaj'),
+    komisyon: bul('Komisyon','Komisyon (USD)','Masraf','Ücret','Commission','Fee'),
     oran:   bul('Oran'),
     kur:    bul('USD kuru','Kur','USD'),
     not:    bul('Not','Açıklama')
@@ -3697,7 +3770,14 @@ function tradeMetindenAktar(metin){
     if(t.startsWith('bol')) return 'bolunme';
     return '';
   };
-  const turCoz = v => harfSadeles(v).startsWith('fon') ? 'fon' : 'hisse';
+  const turCoz = v => {
+    const t = harfSadeles(v);
+    if(t.startsWith('fon')) return 'fon';
+    // ABD / USA / US / ETF / yabanci → dolar bazlı işlem
+    if(t.startsWith('abd') || t.startsWith('usa') || t === 'us' || t.startsWith('etf')
+       || t.startsWith('yaban') || t.startsWith('nasdaq') || t.startsWith('nyse')) return 'abd';
+    return 'hisse';
+  };
   const al = (satir, i) => i > -1 ? String(satir[i] ?? '').trim() : '';
 
   const yeni = [];
@@ -3712,7 +3792,9 @@ function tradeMetindenAktar(metin){
     const fiyat = say(sayiCoz(al(satir, K.fiyat)));
     const tutar = say(sayiCoz(al(satir, K.tutar)));
     const stopaj = say(sayiCoz(al(satir, K.stopaj)));
+    const komisyon = say(sayiCoz(al(satir, K.komisyon)));
     const oran = say(sayiCoz(al(satir, K.oran)));
+    const tur = turCoz(al(satir, K.tur));
     // Temettüde net tutar: önce Tutar kolonu, yoksa Fiyat; eski dosyalarda stopaj düşülür
     const temettuNet = (tutar > 0 ? tutar : fiyat) - (tutar > 0 ? 0 : stopaj);
     if((yon === 'alis' || yon === 'satis') && !(adet > 0 && fiyat > 0)){ hatalar.push(ix + 2); return; }
@@ -3720,10 +3802,11 @@ function tradeMetindenAktar(metin){
     if((yon === 'bedelsiz' || yon === 'bolunme') && !(oran > 0)){ hatalar.push(ix + 2); return; }
     yeni.push({
       id: uid(), tarih, sembol, ad: al(satir, K.ad),
-      tur: turCoz(al(satir, K.tur)), yon,
+      tur, yon,
       adet: (yon === 'alis' || yon === 'satis') ? adet : '',
       fiyat: yon === 'temettu' ? temettuNet
            : ((yon === 'bedelsiz' || yon === 'bolunme') ? '' : fiyat),
+      komisyon: tur === 'abd' ? komisyon : '',
       stopaj: '',
       oran: (yon === 'bedelsiz' || yon === 'bolunme') ? oran : '',
       usdKuru: say(sayiCoz(al(satir, K.kur))),
@@ -3853,14 +3936,19 @@ function tradeFormu(mevcut, onYon, onSembol){
       {v:'alis',a:'Alış'},{v:'satis',a:'Satış'},{v:'temettu',a:'Temettü'},
       {v:'bedelsiz',a:'Bedelsiz'},{v:'bolunme',a:'Bölünme'}]},
     {ad:'tur', etiket:'Tür', tip:'secim', on:'hisse',
-      secenekler:[{v:'hisse',a:'BIST hisse'},{v:'fon',a:'Yatırım fonu'}]},
-    {ad:'sembol', etiket:'Sembol', tip:'metin', ipucu:'THYAO, AFA, TTE…', on: onSembol || ''},
+      secenekler:[{v:'hisse',a:'BIST hisse'},{v:'fon',a:'Yatırım fonu'},
+                  {v:'abd',a:'ABD hisse / ETF (USD)'}]},
+    {ad:'sembol', etiket:'Sembol', tip:'metin', ipucu:'THYAO, AFA, AAPL, VOO…', on: onSembol || ''},
     {ad:'ad', etiket:'Adı (isteğe bağlı)', tip:'metin'},
     {ad:'tarih', etiket:'Tarih', tip:'tarih', on: ymd(bugun())},
     {ad:'adet', etiket:'Adet', tip:'sayi',
       gorunur: v => v.yon === 'alis' || v.yon === 'satis'},
-    {ad:'fiyat', etiket:'Birim fiyat', tip:'sayi',
-      gorunur: v => v.yon === 'alis' || v.yon === 'satis'},
+    {ad:'fiyat', etiket:'Birim fiyat (TL)', tip:'sayi',
+      gorunur: v => (v.yon === 'alis' || v.yon === 'satis') && v.tur !== 'abd'},
+    {ad:'fiyatUsd', etiket:'Birim fiyat (USD)', tip:'sayi',
+      gorunur: v => (v.yon === 'alis' || v.yon === 'satis') && v.tur === 'abd'},
+    {ad:'komisyon', etiket:'Komisyon (USD)', tip:'sayi',
+      gorunur: v => v.tur === 'abd' && v.yon !== 'bedelsiz' && v.yon !== 'bolunme'},
     {ad:'fiyat2', etiket:'Net temettü tutarı (elinize geçen)', tip:'sayi',
       gorunur: v => v.yon === 'temettu'},
     {ad:'oran', etiket:'Bedelsiz oranı (0,5 = %50)', tip:'sayi',
@@ -3870,7 +3958,8 @@ function tradeFormu(mevcut, onYon, onSembol){
     {ad:'usdKuru', etiket:'İşlem günü USD kuru', tip:'sayi'},
     {ad:'not', etiket:'Not', tip:'metin'}
   ];
-  const deger = mevcut ? {...mevcut, fiyat2: mevcut.fiyat, oran2: mevcut.oran} : {};
+  const deger = mevcut ? {...mevcut, fiyat2: mevcut.fiyat, oran2: mevcut.oran,
+    fiyatUsd: mevcut.tur === 'abd' ? mevcut.fiyat : ''} : {};
   if(onSembol && !mevcut){
     const p = pozisyonHesapla(onSembol);
     deger.tur = p.tur; deger.ad = p.ad;
@@ -3881,7 +3970,9 @@ function tradeFormu(mevcut, onYon, onSembol){
     baslik: mevcut ? 'İşlemi düzenle' : 'Yeni işlem',
     alanlar, deger,
     ekAlt: `<p class="etk" style="margin-top:-4px">Kuru boş bırakırsan işlem tarihine ait
-      USD/TRY kuru otomatik bulunur. Dolar bazlı kâr/zarar bu kurla hesaplanır.</p>
+      USD/TRY kuru otomatik bulunur. Dolar bazlı kâr/zarar bu kurla hesaplanır.
+      ABD işlemlerinde fiyat ve komisyon dolar girilir; TL karşılığı bu kurla bulunur,
+      komisyon alışta maliyete eklenir, satışta hasılattan düşülür.</p>
       ${semboller.length ? `<div class="etiketler">${semboller.slice(0,14).map(x =>
         `<button type="button" class="eticip" data-sembolsec="${kacir(x)}">${kacir(x)}</button>`).join('')}</div>` : ''}`,
     sil: mevcut ? () => { D.trades = (D.trades||[]).filter(x => x.id !== mevcut.id); isaretle('trades'); } : null,
@@ -3889,7 +3980,8 @@ function tradeFormu(mevcut, onYon, onSembol){
       if(!String(v.sembol||'').trim()) return 'Sembol boş olamaz.';
       if((v.yon === 'alis' || v.yon === 'satis')){
         if(say(v.adet) <= 0) return 'Adet sıfırdan büyük olmalı.';
-        if(say(v.fiyat) <= 0) return 'Birim fiyat sıfırdan büyük olmalı.';
+        const bf = v.tur === 'abd' ? say(v.fiyatUsd) : say(v.fiyat);
+        if(bf <= 0) return 'Birim fiyat sıfırdan büyük olmalı.';
         if(v.yon === 'satis'){
           const p = pozisyonHesapla(v.sembol);
           const elde = mevcut && mevcut.yon === 'satis' ? p.adet + say(mevcut.adet) : p.adet;
@@ -3912,8 +4004,11 @@ function tradeFormu(mevcut, onYon, onSembol){
         tur: v.tur || 'hisse',
         yon,
         adet: (yon === 'alis' || yon === 'satis') ? say(v.adet) : '',
+        // ABD işlemlerinde fiyat dolar, diğerlerinde TL olarak saklanır
         fiyat: yon === 'temettu' ? say(v.fiyat2)
-             : ((yon === 'alis' || yon === 'satis') ? say(v.fiyat) : ''),
+             : ((yon === 'alis' || yon === 'satis')
+                ? (v.tur === 'abd' ? say(v.fiyatUsd) : say(v.fiyat)) : ''),
+        komisyon: v.tur === 'abd' ? say(v.komisyon) : '',
         stopaj: '',
         oran: yon === 'bedelsiz' ? say(v.oran) : (yon === 'bolunme' ? say(v.oran2) : ''),
         usdKuru: say(v.usdKuru),
@@ -4356,15 +4451,17 @@ document.addEventListener('click', ev => {
     fiyatIncele: async () => {
       const sem = izlenenSemboller();
       const eksikB = sem.bist.filter(x => !(fiyatBul(x) > 0));
-      const eksikF = sem.fon.filter(x => !(fiyatBul(x) > 0));
+      const eksikA = sem.abd.filter(x => !(fiyatBul(x) > 0));
       const eksikD = sem.doviz.filter(x => x !== 'TRY' && !(fiyatBul(x) > 0));
-      if(!eksikB.length && !eksikF.length && !eksikD.length)
-        return bildir('Tüm sembollerin fiyatı var.');
+      if(!eksikB.length && !eksikA.length && !eksikD.length)
+        return bildir(sem.fon.some(x => !(fiyatBul(x) > 0))
+          ? 'Otomatik çekilen sembollerin hepsinde fiyat var. Eksik olanlar fon — fiyatlarını elle girmen gerekiyor.'
+          : 'Tüm sembollerin fiyatı var.');
       // İnceleme de gruplara bölünür: tek büyük istek zaman aşımına uğrar
       const isler = [];
       gruplara(eksikB, 4).forEach(g => isler.push({bist:g.join(',')}));
+      gruplara(eksikA, 4).forEach(g => isler.push({abd:g.join(',')}));
       gruplara(eksikD, 4).forEach(g => isler.push({doviz:g.join(',')}));
-      gruplara(eksikF, 2).forEach(g => isler.push({fon:g.join(',')}));
       const t = {}, gelenler = [], hatalar = [];
       const simdi = new Date().toISOString();
       try{
@@ -4403,11 +4500,12 @@ document.addEventListener('click', ev => {
     fiyatEkle: () => {
       const kod = el.dataset.sembol || '';
       const mevcut = (D.fiyatlar||[]).find(f => f.sembol === kod);
+      const birim = sembolParaBirimi(kod) === 'USD' ? 'USD karşılığı' : 'TL karşılığı';
       formAc({
         baslik: mevcut ? kod + ' fiyatı' : 'Elle fiyat gir',
         alanlar:[
           {ad:'sembol', etiket:'Sembol', tip:'metin', on: kod},
-          {ad:'fiyat', etiket:'TL karşılığı', tip:'sayi', on: mevcut ? mevcut.fiyat : ''}],
+          {ad:'fiyat', etiket: birim, tip:'sayi', on: mevcut ? mevcut.fiyat : ''}],
         sil: mevcut ? () => { D.fiyatlar = D.fiyatlar.filter(f => f.sembol !== kod); isaretle('fiyatlar'); } : null,
         kaydet: v => {
           const sembol = String(v.sembol||'').trim().toUpperCase();
@@ -4416,6 +4514,49 @@ document.addEventListener('click', ev => {
           D.fiyatlar.push({sembol, tur: mevcut ? mevcut.tur : 'elle', fiyat: say(v.fiyat),
             guncelleme: ymd(bugun()), zaman: new Date().toISOString(), ad: mevcut ? mevcut.ad : ''});
           isaretle('fiyatlar');
+        }
+      });
+    },
+    /* Tüm fon fiyatlarını tek ekranda girmek için */
+    fonFiyatlari: () => {
+      const fonlar = [...new Set((D.trades||[])
+        .filter(t => t.tur === 'fon' && t.sembol)
+        .map(t => String(t.sembol).toUpperCase()))].sort((a,b)=>a.localeCompare(b,'tr'));
+      if(!fonlar.length) return bildir('Kayıtlı fon işlemi yok.');
+      const ad = {};
+      fonlar.forEach(f => {
+        const t = (D.trades||[]).find(x => String(x.sembol||'').toUpperCase() === f && x.ad);
+        ad[f] = t ? t.ad : '';
+      });
+      const deger = {};
+      fonlar.forEach(f => {
+        const m = (D.fiyatlar||[]).find(x => x.sembol === f);
+        if(m) deger['f_' + f] = m.fiyat;
+      });
+      formAc({
+        baslik: 'Fon fiyatları',
+        alanlar: fonlar.map(f => ({ad:'f_' + f, tip:'sayi',
+          etiket: f + (ad[f] ? ' — ' + ad[f] : '') + ' (TL)'})),
+        deger,
+        ekAlt: `<p class="etk" style="margin-top:-4px">Fon fiyatları otomatik çekilmiyor;
+          TEFAS'taki son fiyatı buraya yazarsın. Boş bıraktığın fonun fiyatı silinmez,
+          olduğu gibi kalır.</p>`,
+        kaydet: v => {
+          const simdi = new Date().toISOString();
+          let n = 0;
+          fonlar.forEach(f => {
+            const x = v['f_' + f];
+            if(x === '' || x === undefined || x === null) return;   // dokunulmadı
+            const fy = say(x);
+            if(!(fy > 0)) return;
+            const eski = (D.fiyatlar||[]).find(y => y.sembol === f) || {};
+            D.fiyatlar = (D.fiyatlar||[]).filter(y => y.sembol !== f);
+            D.fiyatlar.push({sembol:f, tur:'fon', fiyat:fy, guncelleme: ymd(bugun()),
+              zaman: simdi, ad: eski.ad || ad[f] || ''});
+            n++;
+          });
+          isaretle('fiyatlar');
+          bildir(n + ' fon fiyatı kaydedildi.');
         }
       });
     },
