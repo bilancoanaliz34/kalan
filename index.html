@@ -176,6 +176,30 @@ th.siralanir i{font-style:normal;margin-left:3px;font-size:11px}
    yan kaydırmalı olduğu için bunu açıkça serbest bırakıyoruz. */
 .ikili > *{min-width:0}
 @media(max-width:900px){.ikili{grid-template-columns:1fr;gap:10px}}
+/* Emirler: açılır hisse satırı */
+.emsatir{background:var(--yzy);border:1px solid var(--cizgi);border-radius:14px;
+  margin-bottom:10px;overflow:hidden;box-shadow:var(--golge)}
+.emsatir.acik{border-color:var(--marka2)}
+.embas{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;width:100%;
+  text-align:left;padding:12px 16px;background:none;border-radius:0}
+.embas:hover{background:var(--cizgi2)}
+.emsatir.acik .embas{background:var(--acik)}
+.emad{flex:1 1 190px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.emsembol{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.emsembol b{font-size:15.5px;font-weight:600}
+.emhucre{display:flex;flex-direction:column;gap:1px;min-width:74px}
+.emhucre .e{font-size:11px;color:var(--mut)}
+.emhucre .v{font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.emok{flex:none;color:var(--mut);font-size:20px;line-height:1;transition:transform .15s;
+  transform:rotate(90deg)}
+.emok.acik{transform:rotate(270deg)}
+.emdetay{padding:4px 16px 16px;border-top:1px solid var(--cizgi)}
+.emaraclar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0}
+@media(max-width:620px){
+  .embas{gap:8px 14px;padding:12px 14px}
+  .emhucre{min-width:68px}
+  .emdetay{padding:4px 12px 14px}
+}
 .emirs.tetik td{background:var(--acik)}
 .emirs.bitti td{opacity:.5}
 .emirs.bitti b{text-decoration:line-through}
@@ -2042,12 +2066,12 @@ function emirListesi(){
   const set = new Set();
   (D.trades||[]).forEach(t => { if(t.tur !== 'fon' && t.sembol)
     set.add(String(t.sembol).toUpperCase()); });
+  // Sıralama her zaman alfabetik: emir işaretleyince satırın listede yer
+  // değiştirmesi, uzun listede okuduğun yeri kaybettiriyordu. Acil olanlar
+  // zaten en üstteki “ulaşan emirler” şeridinde toplanıyor.
   return [...set].map(emirDurumu)
     .filter(d => d.adet > 0 || d.alislar.length)      // kapanmış ve kuralsız olanı gösterme
-    .sort((a,b) => {
-      if(!!b.tetik !== !!a.tetik) return b.tetik - a.tetik;
-      return a.sembol.localeCompare(b.sembol, 'tr');
-    });
+    .sort((a,b) => a.sembol.localeCompare(b.sembol, 'tr'));
 }
 
 /* ---------- elle işaretleme ---------- */
@@ -3067,7 +3091,6 @@ function gorunumEmirler(){
   liste.forEach(d => [...d.alislar, ...d.satislar].forEach(o => {
     if(o.hit && !o.isaretli) tetikler.push({d, o});
   }));
-  let sec = liste.find(d => d.sembol === emirSecili) || liste[0] || null;
 
   const topAlis = liste.reduce((a,d) => a + d.alisToplam, 0);
   const topSatis = liste.reduce((a,d) => a + d.satisToplam, 0);
@@ -3118,61 +3141,65 @@ function gorunumEmirler(){
     </div>
   </div>
 
-  <div class="kart" style="margin-bottom:16px">
-    <div class="bas"><span>Hisseler</span>
-      <span class="etk">satıra tıkla, merdiveni aşağıda açılır</span></div>
-    ${liste.length ? `<div class="bkaydir"><table style="min-width:1000px">
-      <tr><th>Hisse</th><th class="sag">Referans</th><th class="sag">Güncel</th>
-        <th class="sag">Elinde</th><th class="sag">Ort. maliyet</th><th class="sag">Değer</th>
-        <th class="sag">K/Z</th><th class="sag">Alış emri</th><th class="sag">Satış emri</th><th></th></tr>
-      ${liste.map(d => {
-        const p = pozisyonHesapla(d.sembol);
-        const ilkA = d.alislar.find(o => !o.isaretli);
-        const ilkS = d.satislar.find(o => !o.isaretli);
-        const alt = [
-          ilkA ? 'Alış ' + para(ilkA.p,d.paraBirimi,2) + ' (' + (ilkA.dist>0?'+':'') +
-                 say(ilkA.dist).toFixed(1).replace('.',',') + '%)' : '',
-          ilkS ? 'Satış ' + para(ilkS.p,d.paraBirimi,2) + ' (+' +
-                 say(ilkS.dist).toFixed(1).replace('.',',') + '%)' : ''
-        ].filter(Boolean).join(' · ') || (
-            d.maliyetsiz ? 'Maliyet sıfırın altında, satış emri yok'
-          : d.kucukPozisyon ? 'Pozisyon alt sınırın altında'
-          : d.satisEngel === 'altSinir' ? 'Satış kademesi alt sınıra takılıyor'
-          : 'Kural tanımlı değil');
-        return `<tr class="krsatir ${sec && d.sembol===sec.sembol?'secili':''}"
-            data-eylem="emSec" data-sembol="${kacir(d.sembol)}">
-          <td><b>${kacir(d.sembol)}</b>
-            ${d.tur==='abd'?'<span class="rozet">ABD</span>':''}
-            ${d.tetik?`<span class="rozet s">${d.tetik} emir</span>`:''}
-            ${d.elleRef?'<span class="rozet n" title="Referans elle sabitlendi">sabit ref</span>':''}
-            ${d.maliyetsiz?'<span class="rozet">bedava</span>':''}
-            <br><small class="etk">${kacir(alt)}</small></td>
-          <td class="sag sayi">${d.referans>0?para(d.referans,d.paraBirimi,2):'<span class="etk">–</span>'}</td>
-          <td class="sag sayi">${d.guncel>0?para(d.guncel,d.paraBirimi,2):'<span class="rozet s">fiyat yok</span>'}</td>
-          <td class="sag sayi">${say(p.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</td>
-          <td class="sag sayi ${p.birimKendi<=0?'art':''}">${p.adet>0?para(p.birimKendi,d.paraBirimi,2):'<span class="etk">–</span>'}</td>
-          <td class="sag sayi">${p.deger>0?para(p.deger):'<span class="etk">–</span>'}</td>
-          <td class="sag sayi ${p.deger>0?(p.acikKzTl<0?'eks':'art'):''}">${p.deger>0
-            ? (p.acikKzTl>0?'+':'')+para(p.acikKzTl):'<span class="etk">–</span>'}</td>
-          <td class="sag sayi">${d.alislar.length?d.alislar.length+' · '+para(d.alisToplam):'<span class="etk">–</span>'}</td>
-          <td class="sag sayi">${d.satislar.length?d.satislar.length+' · '+para(d.satisToplam)
-            :'<span class="etk">–</span>'}</td>
-          <td class="sag"><button class="btn ikincil ince" data-eylem="kuralDuzenle"
-            data-sembol="${kacir(d.sembol)}">Kural</button></td>
-        </tr>`;
-      }).join('')}
-    </table></div>` : bosKutu('Takip edilecek hisse yok. Önce Yatırımlar sayfasından bir işlem ekle.')}
-  </div>
+  <div class="bas" style="margin:0 0 10px"><span>Hisseler</span>
+    <span class="etk">${liste.length} hisse · satıra tıkla, merdiveni hemen altında açılır</span></div>
 
-  ${sec ? emKarti(sec) : ''}
+  ${liste.length ? liste.map(d => emSatir(d)).join('')
+    : `<div class="kart">${bosKutu('Takip edilecek hisse yok. Önce Yatırımlar sayfasından bir işlem ekle.')}</div>`}
 
   <p class="etk" style="margin-top:12px">Merdiven pozisyonundan ve son işlem fiyatından hesaplanır,
   kaydedilmez. Hiçbir emir kendiliğinden işleme yazılmaz — alış ve satışları Yatırımlar'a her
   zamanki gibi sen girersin. Buradaki “Gerçekleşti” yalnızca o emri listede işaretler.</p>`;
 }
 
-/* ---------- seçili hissenin merdiveni ---------- */
-function emKarti(d){
+/* ---------- açılır hisse satırı ---------- */
+function emSatir(d){
+  const acik = d.sembol === emirSecili;
+  const p = pozisyonHesapla(d.sembol);
+  const pb = d.paraBirimi;
+  const ilkA = d.alislar.find(o => !o.isaretli);
+  const ilkS = d.satislar.find(o => !o.isaretli);
+  const alt = [
+    ilkA ? 'Alış ' + para(ilkA.p,pb,2) + ' (' + (ilkA.dist>0?'+':'') +
+           say(ilkA.dist).toFixed(1).replace('.',',') + '%)' : '',
+    ilkS ? 'Satış ' + para(ilkS.p,pb,2) + ' (+' +
+           say(ilkS.dist).toFixed(1).replace('.',',') + '%)' : ''
+  ].filter(Boolean).join(' · ') || (
+      d.maliyetsiz ? 'Maliyet sıfırın altında, satış emri yok'
+    : d.kucukPozisyon ? 'Pozisyon alt sınırın altında'
+    : d.satisEngel === 'altSinir' ? 'Satış kademesi alt sınıra takılıyor'
+    : 'Kural tanımlı değil');
+
+  const h = (etiket, deger, sinif) =>
+    `<span class="emhucre"><span class="e">${etiket}</span><span class="v ${sinif||''}">${deger}</span></span>`;
+
+  return `<div class="emsatir ${acik?'acik':''}">
+    <button type="button" class="embas" data-eylem="emSec" data-sembol="${kacir(d.sembol)}">
+      <span class="emad">
+        <span class="emsembol"><b>${kacir(d.sembol)}</b>
+          ${d.tur==='abd'?'<span class="rozet">ABD</span>':''}
+          ${d.tetik?`<span class="rozet s">${d.tetik} emir</span>`:''}
+          ${d.elleRef?'<span class="rozet n">sabit ref</span>':''}
+          ${d.maliyetsiz?'<span class="rozet">bedava</span>':''}</span>
+        <span class="etk">${kacir(alt)}</span>
+      </span>
+      ${h('Referans', d.referans>0?para(d.referans,pb,2):'–')}
+      ${h('Güncel', d.guncel>0?para(d.guncel,pb,2):'<span class="rozet s">yok</span>')}
+      ${h('Elinde', say(p.adet).toLocaleString('tr-TR',{maximumFractionDigits:4}))}
+      ${h('Ort. maliyet', p.adet>0?para(p.birimKendi,pb,2):'–', p.birimKendi<=0&&p.adet>0?'art':'')}
+      ${h('Değer', p.deger>0?para(p.deger):'–')}
+      ${h('K/Z', p.deger>0?(p.acikKzTl>0?'+':'')+para(p.acikKzTl):'–',
+          p.deger>0?(p.acikKzTl<0?'eks':'art'):'')}
+      ${h('Alış emri', d.alislar.length?para(d.alisToplam):'–')}
+      ${h('Satış emri', d.satislar.length?para(d.satisToplam):'–')}
+      <span class="emok ${acik?'acik':''}">›</span>
+    </button>
+    ${acik ? `<div class="emdetay">${emDetay(d)}</div>` : ''}
+  </div>`;
+}
+
+/* ---------- açılan merdiven ---------- */
+function emDetay(d){
   const pb = d.paraBirimi;
   const p = pozisyonHesapla(d.sembol);
   const k = d.kural;
@@ -3195,14 +3222,13 @@ function emKarti(d){
   const basliklar = `<tr><th>Kademe</th><th class="sag">Fiyat</th><th class="sag">Adet</th>
     <th class="sag">Tutar</th><th class="sag">Mesafe</th><th></th></tr>`;
 
-  return `<div class="kart" style="margin-bottom:16px">
-    <div class="bas">
-      <span><b style="font-size:16px">${kacir(d.sembol)}</b>
-        ${d.ad?`<span class="etk"> ${kacir(d.ad)}</span>`:''}</span>
-      <span class="etk">referans ${para(d.referans,pb,2)}${d.elleRef
+  return `
+    <div class="emaraclar">
+      <span class="etk">Referans <b>${para(d.referans,pb,2)}</b>${d.elleRef
         ? ' · elle sabitlendi'
         : (d.referansTarih ? ' · ' + trTarih(d.referansTarih) + ' ' +
             (d.referansYon==='alis'?'alışı':'satışı') : '')}</span>
+      <span style="flex:1"></span>
       <button class="btn ikincil ince" data-eylem="emReferans" data-sembol="${kacir(d.sembol)}">
         ${d.elleRef ? 'Referansı değiştir' : 'Referansı sabitle'}</button>
       ${d.elleRef ? `<button class="btn ikincil ince" data-eylem="emReferansSifirla"
@@ -3213,8 +3239,7 @@ function emKarti(d){
     </div>
 
     ${d.elleRef ? `<p class="uyari" style="margin-bottom:12px">Referans <b>${para(d.referans,pb,2)}</b>
-      olarak elle sabitlendi; son işlem fiyatı (${d.referansTarih
-        ? para(sonIslemFiyati(d.sembol).fiyat,pb,2) : '—'}) dikkate alınmıyor.
+      olarak elle sabitlendi; son işlem fiyatı dikkate alınmıyor.
       Pozisyon merdivene oturduğunda “Son işleme dön” ile otomatiğe çevirebilirsin.</p>` : ''}
     ${d.maliyetsiz ? `<p class="uyari" style="margin-bottom:12px">Ortalama maliyet
       <b>${para(p.birimKendi,pb,2)}</b> — temettülerle sıfırın altına inmiş. Bu pozisyon bedavaya
@@ -3223,23 +3248,12 @@ function emKarti(d){
       <b>${para(d.deger)}</b>, alt sınır <b>${para(k.minPozisyon)}</b>. Bu kadar küçük bir pozisyonda
       satış emri verilmiyor; alış kademeleri açık.</p>` : ''}
 
-    <div class="izgara i4" style="margin-bottom:14px">
-      <div><p class="etk">Elinde</p><p class="orta sayi">${say(p.adet).toLocaleString('tr-TR',{maximumFractionDigits:4})}</p>
-        <p class="etk">ort. ${p.adet>0?para(p.birimKendi,pb,2):'–'}</p></div>
-      <div><p class="etk">Güncel fiyat</p><p class="orta sayi">${d.guncel>0?para(d.guncel,pb,2):'–'}</p>
-        <p class="etk">değer ${para(d.deger)}</p></div>
-      <div><p class="etk">Alış emirleri</p><p class="orta sayi">${para(d.alisToplam)}</p>
-        <p class="etk">${d.alislar.length} kademe</p></div>
-      <div><p class="etk">Satış emirleri</p><p class="orta sayi">${para(d.satisToplam)}</p>
-        <p class="etk">${d.satislar.length} kademe · ${say(d.satisAdet).toLocaleString('tr-TR')} adet</p></div>
-    </div>
-
     <div class="ikili">
       <div>
         <div class="bas" style="margin:0 0 8px"><span>Alış kademeleri</span>
-          <span class="etk">tutar ve düşüş katlanarak</span></div>
+          <span class="etk">${para(k.alisTutar)} · %${(say(k.alisDusus)*100).toFixed(1).replace('.',',')} · katlanarak</span></div>
         ${d.alislar.length ? `<div class="kart" style="padding:0;overflow:hidden">
-          <div class="bkaydir"><table style="min-width:480px">${basliklar}
+          <div class="bkaydir"><table style="min-width:460px">${basliklar}
           ${satirlar(d.alislar, 'alis')}</table></div></div>`
           : `<div class="kart">${bosKutu('Alış kuralı tanımlı değil. “Kuralı değiştir” ile ilk kademe tutarını ve düşüş oranını gir.')}</div>`}
       </div>
@@ -3247,7 +3261,7 @@ function emKarti(d){
         <div class="bas" style="margin:0 0 8px"><span>Satış kademeleri</span>
           <span class="etk">${para(k.satisTutar)} · %${(say(k.satisArtis)*100).toFixed(1).replace('.',',')} bileşik</span></div>
         ${d.satislar.length ? `<div class="kart" style="padding:0;overflow:hidden">
-          <div class="bkaydir"><table style="min-width:480px">${basliklar}
+          <div class="bkaydir"><table style="min-width:460px">${basliklar}
           ${satirlar(d.satislar, 'satis')}</table></div>
           ${d.satisBitti ? `<p class="etk" style="padding:10px 14px;margin:0">${
             d.satisBitti === 'kademe sınırı'
@@ -3264,11 +3278,9 @@ function emKarti(d){
                 para(k.minPozisyon) + ') altına düşürüyor. Kademe tutarını küçült ya da alt sınırı düşür.'
             : p.adet > 0 ? 'Satış kuralı tanımlı değil.' : 'Elinde hisse yok.')}</div>`}
       </div>
-    </div>
-  </div>`;
+    </div>`;
 }
 
-/* ---------- referans formu ---------- */
 function emReferansFormu(sembol){
   const d = emirDurumu(sembol);
   const son = sonIslemFiyati(sembol);
@@ -5532,7 +5544,11 @@ document.addEventListener('click', ev => {
       ciz();
     },
     emirSirala: () => { emirSira = emirSira === el.dataset.v ? '' : el.dataset.v; ciz(); },
-    emSec: () => { emirSecili = String(el.dataset.sembol||'').toUpperCase(); ciz(); },
+    emSec: () => {
+      const sem = String(el.dataset.sembol||'').toUpperCase();
+      emirSecili = emirSecili === sem ? '' : sem;    // tekrar tıklayınca kapanır
+      ciz();
+    },
     emReferans: () => emReferansFormu(el.dataset.sembol),
     emReferansSifirla: () => {
       const sem = String(el.dataset.sembol||'').toUpperCase();
