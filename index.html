@@ -126,6 +126,9 @@ td.sag,th.sag{text-align:right}
   color:var(--mut);border-radius:0}
 .arakutu button:hover{color:var(--ink)}
 .arabos{padding:18px;text-align:center;color:var(--mut);font-size:14px}
+.dahafazla{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  padding:12px 14px;border-top:1px solid var(--cizgi)}
+.dahafazla > span:first-child{flex:1;min-width:150px}
 .fiyatd{font:inherit;color:inherit;padding:1px 4px;margin:-1px -4px;border-radius:7px;
   border-bottom:1px dashed var(--cizgi)}
 .fiyatd:hover{background:var(--cizgi2);border-bottom-color:var(--marka2)}
@@ -382,6 +385,12 @@ let butceTur = 'gider';           // bütçe ekranında gider mi gelir mi
 let yatFiltre = 'hepsi';          // yatırım ekranı: hepsi | hisse | fon
 let yatSayfa = 'pozisyon';        // pozisyon | islem | kapanan
 let yatAra = '';                  // sembol / ad araması, üç sekmede de geçerli
+/* Uzun geçmişte tüm satırları birden basmak tarayıcıyı yoruyor: önce bir
+   dilim gösterilir, altındaki düğmeyle gerisi gelir. Arama, filtre, sıralama
+   ya da sekme değişince başa döner. */
+const TRADE_DILIM = 250;
+let tradeLimit = TRADE_DILIM;
+function tradeLimitSifirla(){ tradeLimit = TRADE_DILIM; }
 let yatSira = {alan:'deger', yon:-1};     // pozisyon tablosu sıralaması
 let tradeSira = {alan:'tarih', yon:-1};   // işlem geçmişi sıralaması
 
@@ -2022,6 +2031,7 @@ function emirDurumu(sembol){
     kural: k, kayit: m,
     adet: p.adet, ortalama: p.birimKendi, maliyet: p.maliyet,
     guncel, referans, elleRef: !!elleRef, kapanis,
+    hareketSayisi: p.hareketSayisi,
     deger: p.adet * (guncel || 0),
     kademeler: [], emirler: [], tetik: 0, dolu: 0, parcali: 0,
     kurulu: !!(m && (say(m.referansElle) > 0 || kapanis || (m.st||[]).some(x => x && x.b)))
@@ -2123,17 +2133,25 @@ function emirDurumu(sembol){
   return d;
 }
 
+/* Emir takibine girmeyen türler:
+   fon — fiyatı günlük ve elle giriliyor, merdiven kurulmuyor.
+   abd — dolar bazlı alıp sattığın hisse ve ETF'ler kademeli trade dışında. */
+const EMIR_DISI_TUR = new Set(['fon','abd']);
+
 function emirListesi(){
-  // Fonlar emir takibine girmez: fiyatları günlük ve elle giriliyor.
   const set = new Set();
-  (D.trades||[]).forEach(t => { if(t.tur !== 'fon' && t.sembol)
+  (D.trades||[]).forEach(t => { if(!EMIR_DISI_TUR.has(t.tur) && t.sembol)
     set.add(String(t.sembol).toUpperCase()); });
   merdivenler().forEach(m => { if(m.sembol) set.add(String(m.sembol).toUpperCase()); });
   // Sıralama her zaman alfabetik: emir işaretleyince satırın listede yer
   // değiştirmesi, uzun listede okuduğun yeri kaybettiriyordu. Acil olanlar
   // zaten en üstteki “ulaşan emirler” şeridinde toplanıyor.
   return [...set].map(emirDurumu)
-    .filter(d => d.adet > 0 || d.kurulu)
+    // Kapanan pozisyon listeden düşer: elde hisse yoksa ve geçmişinde işlem
+    // varsa o hisse kapanmıştır. Hiç işlem görmemiş sembolde merdiven
+    // kurulmuşsa (henüz alınmamış, plan aşamasında) listede kalır.
+    .filter(d => !EMIR_DISI_TUR.has(d.tur)
+      && (d.adet > 0 || (d.hareketSayisi === 0 && d.kurulu)))
     .sort((a,b) => a.sembol.localeCompare(b.sembol, 'tr'));
 }
 
@@ -2896,12 +2914,6 @@ function gorunumYatirim(){
   const fiyatZaman = (D.fiyatlar||[]).reduce((a,f) => f.zaman && f.zaman > a ? f.zaman : a, '');
   const usdKuru = t.usdKuru;
 
-  const sayfalar = {
-    pozisyon: () => yatFiltre === 'diger' ? digerTablosu() : pozisyonTablosu(t),
-    islem: () => tradeGecmisi(),
-    kapanan: () => kapananTablosu(t)
-  };
-
   return `
   <div class="ust"><h1>Yatırımlar</h1>
     <button class="btn ikincil" data-eylem="fiyatYenile"><svg><use href="#s-sync"/></svg>Fiyatları güncelle</button>
@@ -2946,7 +2958,8 @@ function gorunumYatirim(){
         <svg><use href="#s-ara"/></svg>
         <input type="search" data-odak="yatAra" data-giris="yatAra" value="${kacir(yatAra)}"
           placeholder="Hisse ara" autocomplete="off" spellcheck="false">
-        ${yatAra ? `<button type="button" data-eylem="yatAraTemizle" title="Aramayı temizle">×</button>` : ''}
+        <button type="button" data-eylem="yatAraTemizle" title="Aramayı temizle"
+          ${yatAra ? '' : 'hidden'}>×</button>
       </span>
       <span class="etk arazaman">
       ${fiyatZaman ? 'Fiyatlar ' + new Date(fiyatZaman).toLocaleString('tr-TR',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) + ' itibarıyla'
@@ -2954,7 +2967,17 @@ function gorunumYatirim(){
     </span>
   </div>
 
-  ${(sayfalar[yatSayfa] || sayfalar.pozisyon)()}`;
+  <div id="yatsonuc">${yatSonuc(t)}</div>`;
+}
+
+/* Yatırımlar sayfasının sonuç bölümü — arama kutusuna yazarken sayfanın
+   tamamı değil yalnızca burası yeniden çiziliyor. 1500 işlemlik geçmişte
+   her tuşta tüm sayfayı kurmak yarım saniye sürüyordu. */
+function yatSonuc(t){
+  const ozet = t || portfoyOzet(['hepsi','diger'].includes(yatFiltre) ? null : yatFiltre);
+  if(yatSayfa === 'islem') return tradeGecmisi();
+  if(yatSayfa === 'kapanan') return kapananTablosu(ozet);
+  return yatFiltre === 'diger' ? digerTablosu() : pozisyonTablosu(ozet);
 }
 
 function digerTablosu(){
@@ -3117,6 +3140,9 @@ function tradeGecmisi(){
   if(!liste.length) return `<div class="kart">${yatAra
     ? `<p class="arabos">“${kacir(yatAra)}” ile eşleşen işlem yok.</p>`
     : bosKutu('Kayıtlı işlem yok.')}</div>`;
+  const toplam = liste.length;
+  const kirpik = toplam > tradeLimit;
+  if(kirpik) liste = liste.slice(0, tradeLimit);
   return `<div class="kart"><div class="bkaydir"><table style="min-width:760px">
     <tr>${siraBaslik(tradeSira,'Tarih','tarih')}${siraBaslik(tradeSira,'Sembol','sembol')}
       ${siraBaslik(tradeSira,'İşlem','yon')}${siraBaslik(tradeSira,'Adet','adet',1)}
@@ -3149,7 +3175,17 @@ function tradeGecmisi(){
         <td class="sag"><span class="etk">düzenle ›</span></td>
       </tr>`;
     }).join('')}
-  </table></div></div>`;
+  </table></div>
+  ${kirpik ? `<div class="dahafazla">
+    <span class="etk">${toplam.toLocaleString('tr-TR')} kayıttan ilk
+      ${liste.length.toLocaleString('tr-TR')} tanesi gösteriliyor</span>
+    <button class="btn ikincil ince" data-eylem="tradeDaha">${TRADE_DILIM} tane daha</button>
+    <button class="btn ikincil ince" data-eylem="tradeDaha" data-hepsi="1">Tümünü göster</button>
+  </div>` : (toplam > TRADE_DILIM ? `<div class="dahafazla">
+    <span class="etk">${toplam.toLocaleString('tr-TR')} kaydın tamamı gösteriliyor</span>
+    <button class="btn ikincil ince" data-eylem="tradeDaha" data-az="1">Kısalt</button>
+  </div>` : '')}
+  </div>`;
 }
 
 function kapananTablosu(t){
@@ -3257,7 +3293,7 @@ function gorunumEmirler(){
     <span class="etk">${liste.length} hisse · satıra tıkla, merdiveni hemen altında açılır</span></div>
 
   ${liste.length ? liste.map(d => emSatir(d)).join('')
-    : `<div class="kart">${bosKutu('Takip edilecek hisse yok. Önce Yatırımlar sayfasından bir işlem ekle.')}</div>`}
+    : `<div class="kart">${bosKutu('Takip edilecek BIST hissesi yok. Önce Yatırımlar sayfasından bir işlem ekle.')}</div>`}
 
   <p class="etk" style="margin-top:12px">Merdiven referans fiyattan kurulur; referansı sen
   girersin${refsiz ? ` (${refsiz} hissede henüz girilmedi, güncel fiyat kullanılıyor)` : ''}.
@@ -3265,7 +3301,9 @@ function gorunumEmirler(){
   sen girersin, buradaki “Doldu” yalnızca merdivende işaretler.
   <br>Güncel fiyatın <b style="color:var(--maviY)">±%10</b> bandındaki kademeler mavi dolguyla
   işaretlenir. <b>Kapanış</b> tikini işaretlediğin hissede alış emri üretilmez ve pozisyonun
-  tamamı (%100) satışa çıkar.</p>`;
+  tamamı (%100) satışa çıkar.
+  <br>Bu sayfada yalnızca elinde hissesi olan BIST pozisyonları listelenir; kapanan pozisyonlar,
+  ABD hisse ve ETF'leri ile fonlar emir takibine girmez.</p>`;
 }
 
 /* ---------- açılır hisse satırı ---------- */
@@ -3296,7 +3334,6 @@ function emSatir(d){
     <div class="embas" data-eylem="emSec" data-sembol="${kacir(d.sembol)}" role="button" tabindex="0">
       <span class="emad">
         <span class="emsembol"><b>${kacir(d.sembol)}</b>
-          ${d.tur==='abd'?'<span class="rozet">ABD</span>':''}
           ${d.tetik?`<span class="rozet s">${d.tetik} emir</span>`:''}
           ${d.kapanis?'<span class="rozet m">✓ kapanış · %100 satış</span>':''}
           ${d.elleRef?'':'<span class="rozet n">referans yok</span>'}
@@ -4480,9 +4517,9 @@ function kuralFormu(sembol){
   const mevcut = (D.emirKurallari||[]).find(k =>
     genelMi ? (!k.sembol || k.sembol === '*') : String(k.sembol||'').toUpperCase() === s);
   const g = genelKural();
-  const semboller = [...new Set((D.trades||[])
-    .filter(t => t.tur !== 'fon').map(t => String(t.sembol||'').toUpperCase()))]
-    .filter(Boolean).sort((a,b)=>a.localeCompare(b,'tr'));
+  const semboller = [...new Set([...emirListesi().map(d => d.sembol),
+    ...(mevcut && mevcut.sembol && mevcut.sembol !== '*' ? [mevcut.sembol] : [])])]
+    .sort((a,b) => a.localeCompare(b,'tr'));
 
   const tl  = a => say(g[a]) > 0 ? 'genel: ' + para(g[a]) : '';
   const yzd = a => say(g[a]) > 0 ? 'genel: %' + (say(g[a])*100).toFixed(1).replace('.',',') : '';
@@ -5537,6 +5574,15 @@ const GORUNUMLER = {
   yatirim: gorunumYatirim, emirler: gorunumEmirler, kripto: gorunumKripto,
   varlik: gorunumVarlik, ayarlar: gorunumAyarlar
 };
+/* Salt okunur kipte veri değiştiren düğmeleri kapat */
+function saltOkunurGizle(kok){
+  if(!kok) return;
+  kok.querySelectorAll('[data-eylem]').forEach(d => {
+    if(SERBEST_EYLEM.has(d.dataset.eylem) && d.dataset.eylem !== 'zorlaKaydet') return;
+    if(d.tagName === 'BUTTON') d.style.display = 'none';
+    else d.removeAttribute('data-eylem');
+  });
+}
 function ciz(){
   const g = GORUNUMLER[aktifSayfa] || gorunumOzet;
   const serit = (AYAR.mod === 'supabase' && !OTURUM)
@@ -5559,13 +5605,7 @@ function ciz(){
   $('#ana').innerHTML = serit + g();
   cizilenAnahtar = anahtar;
   if(typeof dugmeYaz === 'function') dugmeYaz();
-  if(AYAR.saltOkunur){
-    $$('#ana [data-eylem]').forEach(d => {
-      if(SERBEST_EYLEM.has(d.dataset.eylem) && d.dataset.eylem !== 'zorlaKaydet') return;
-      if(d.tagName === 'BUTTON') d.style.display = 'none';
-      else d.removeAttribute('data-eylem');
-    });
-  }
+  if(AYAR.saltOkunur) saltOkunurGizle($('#ana'));
   $$('.yan .sek').forEach(a => a.classList.toggle('on', a.dataset.git === aktifSayfa));
   if(odak){
     const y = $(`[data-odak="${odak.ad}"]`);
@@ -5587,7 +5627,7 @@ function yonlendir(){
 
 const SERBEST_EYLEM = new Set(['yenile','ayDegis','fltrTur','fltrEtiket','baglantiSina',
   'sbKaydetAyar','sbGirisAc','sbCikis','sbParolaAc','tabloKaydet','kartHareket','butceTur',
-  'yatFiltre','yatSayfa','yatAraTemizle','yatSirala','tradeSirala',
+  'yatFiltre','yatSayfa','yatAraTemizle','yatSirala','tradeSirala','tradeDaha',
   'emSec','emDoldur','emBosalt','emSifirla','emOtur','emKapanis','krCoinSec','fiyatSina','fiyatIncele','tradeDisaAktar',
   'disaAktar','fiyatYenile','urlKaydet','gomuluAdres','dosyaOlustur','dosyaAc','dosyaBagla',
   'dosyaCoz','tabloHazirla','zorlaKaydet','okunurDegis']);
@@ -5725,8 +5765,19 @@ document.addEventListener('click', ev => {
       isaretle('kriptoCoinler'); ciz(); krSorgula();
       bildir('Örnek coinler eklendi. “Coin ayarı” ile düzenleyebilirsin.');
     },
-    yatFiltre: () => { yatFiltre = el.dataset.v; ciz(); },
-    yatAraTemizle: () => { yatAra = ''; ciz(); },
+    yatFiltre: () => { yatFiltre = el.dataset.v; tradeLimitSifirla(); ciz(); },
+    tradeDaha: () => {
+      const n = (D.trades||[]).length;
+      tradeLimit = el.dataset.az ? TRADE_DILIM
+        : (el.dataset.hepsi ? n : tradeLimit + TRADE_DILIM);
+      yatSonucTazele();
+    },
+    yatAraTemizle: () => {
+      yatAra = ''; tradeLimitSifirla();
+      const kutu = $('[data-odak="yatAra"]');
+      if(kutu){ kutu.value = ''; el.hidden = true; yatSonucTazele(); kutu.focus(); }
+      else ciz();
+    },
     yatSirala: () => {
       const a = el.dataset.alan;
       if(yatSira.alan === a) yatSira.yon = -yatSira.yon;
@@ -5737,7 +5788,7 @@ document.addEventListener('click', ev => {
       const a = el.dataset.alan;
       if(tradeSira.alan === a) tradeSira.yon = -tradeSira.yon;
       else tradeSira = {alan:a, yon: (a === 'sembol' || a === 'yon') ? 1 : -1};
-      ciz();
+      tradeLimitSifirla(); ciz();
     },
     emSec: () => {
       const sem = String(el.dataset.sembol||'').toUpperCase();
@@ -5784,7 +5835,7 @@ document.addEventListener('click', ev => {
       bildir(n ? sem + ': ilk ' + n + ' kademe dolu işaretlendi.'
                : sem + ': pozisyon ilk kademeyi karşılamıyor, hiçbir kademe işaretlenmedi.');
     },
-    yatSayfa: () => { yatSayfa = el.dataset.v; ciz(); },
+    yatSayfa: () => { yatSayfa = el.dataset.v; tradeLimitSifirla(); ciz(); },
     yatirimEkle: () => yatirimFormu(),
     yatirimDuzenle: () => yatirimFormu((D.yatirimlar||[]).find(x=>x.id===id)),
     fiyatYenile: () => fiyatlariTazele(),
@@ -5985,10 +6036,26 @@ $('#durum').addEventListener('click', () => {
 document.addEventListener('change', ev => {
   if(ev.target.id === 'temaSec'){ AYAR.tema = ev.target.value; yereleYaz(); temaUygula(); }
 });
-/* Arama kutuları: yazdıkça süzer, imleç ciz() içinde korunur */
+/* Arama kutuları: yazdıkça süzer.
+   Her tuşta tüm sayfayı kurmak uzun işlem geçmişinde takılmaya yol açıyordu;
+   bunun yerine kısa bir bekleme sonrası yalnızca sonuç tablosu yenileniyor.
+   Kutunun kendisi yerinde kaldığı için imleç ve odak hiç bozulmuyor. */
+let yatAraZaman = 0;
+function yatSonucTazele(){
+  const kutu = $('#yatsonuc');
+  if(aktifSayfa !== 'yatirim' || !kutu){ ciz(); return; }
+  kutu.innerHTML = yatSonuc();
+  if(AYAR.saltOkunur) saltOkunurGizle(kutu);
+}
 document.addEventListener('input', ev => {
   const g = ev.target.dataset && ev.target.dataset.giris;
-  if(g === 'yatAra'){ yatAra = ev.target.value; ciz(); }
+  if(g !== 'yatAra') return;
+  yatAra = ev.target.value;
+  tradeLimitSifirla();
+  const temizle = ev.target.parentNode.querySelector('[data-eylem="yatAraTemizle"]');
+  if(temizle) temizle.hidden = !yatAra;
+  clearTimeout(yatAraZaman);
+  yatAraZaman = setTimeout(yatSonucTazele, 140);
 });
 document.addEventListener('keydown', ev => {
   if(ev.key === 'Escape') kapat();
